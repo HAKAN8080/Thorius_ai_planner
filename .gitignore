@@ -1,10 +1,9 @@
 # Secrets - API keys
 AI Agent/.streamlit/secrets.toml
 
-# Data files - Excel raporları (büyük dosyalar)
-AI Agent/data/*.xlsx
-AI Agent/data/*.xls
-AI Agent/data/*.csv
+# Root Excel files (kopyalar)
+/*.xlsx
+/*.xls
 
 # Temp files
 temp_kap.xlsx
