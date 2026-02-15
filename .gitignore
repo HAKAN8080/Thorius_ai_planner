@@ -1,0 +1,27 @@
+# Secrets - API keys
+AI Agent/.streamlit/secrets.toml
+
+# Data files - Excel raporları (büyük dosyalar)
+AI Agent/data/*.xlsx
+AI Agent/data/*.xls
+AI Agent/data/*.csv
+
+# Temp files
+temp_kap.xlsx
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit cache
+AI Agent/.streamlit/cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Python
+*.egg-info/
+dist/
+build/
+.env
+venv/
