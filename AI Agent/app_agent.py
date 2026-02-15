@@ -543,28 +543,16 @@ st.markdown("""
 with st.sidebar:
     st.header("⚙️ Ayarlar")
     
-    # API Key
-    st.subheader("🔑 Claude API")
+    # API Key - secrets.toml'dan otomatik yüklenir
     try:
-        api_key_secret = st.secrets.get("ANTHROPIC_API_KEY", "")
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", "").strip()
     except:
-        api_key_secret = ""
-    
-    if api_key_secret:
-        api_key = api_key_secret
-        st.success("✅ API Key (secrets'tan)")
+        api_key = ""
+
+    if api_key:
+        st.success("✅ API Bağlantısı Aktif")
     else:
-        api_key_input = st.text_input("API Key", type="password", key="api_key_input")
-        if api_key_input:
-            api_key = api_key_input.strip()
-            st.session_state['api_key_saved'] = api_key
-            st.success("✅ API Key girildi")
-        elif st.session_state.get('api_key_saved'):
-            api_key = st.session_state['api_key_saved']
-            st.success("✅ API Key (önceden girildi)")
-        else:
-            api_key = ""
-            st.warning("⚠️ API Key gerekli")
+        st.error("❌ API yapılandırması eksik. Sistem yöneticisi ile irtibata geçin.")
     
     st.markdown("---")
 
