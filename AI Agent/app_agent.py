@@ -631,11 +631,48 @@ with st.sidebar:
                     try:
                         from agent_tools import KupVeri
 
+                        # Lokale kaydet
                         for uploaded_file in uploaded_files:
                             file_path = os.path.join(DATA_DIR, uploaded_file.name)
                             with open(file_path, 'wb') as f:
                                 f.write(uploaded_file.getbuffer())
                             st.caption(f"✅ {uploaded_file.name} kaydedildi")
+
+                        # GitHub'a push et (kalıcı)
+                        try:
+                            gh_token = st.secrets.get("GITHUB_TOKEN", "")
+                            gh_repo = st.secrets.get("GITHUB_REPO", "HAKAN8080/Thorius_ai_planner")
+                            if gh_token:
+                                import requests as _req
+                                for uploaded_file in uploaded_files:
+                                    file_content = uploaded_file.getbuffer().tobytes()
+                                    gh_path = f"AI Agent/data/{uploaded_file.name}"
+                                    api_url = f"https://api.github.com/repos/{gh_repo}/contents/{gh_path}"
+                                    headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github.v3+json"}
+
+                                    # Mevcut dosyanın SHA'sını al (güncelleme için gerekli)
+                                    sha = None
+                                    r = _req.get(api_url, headers=headers)
+                                    if r.status_code == 200:
+                                        sha = r.json().get("sha")
+
+                                    import base64 as _b64
+                                    payload = {
+                                        "message": f"Veri güncelleme: {uploaded_file.name}",
+                                        "content": _b64.b64encode(file_content).decode('utf-8'),
+                                    }
+                                    if sha:
+                                        payload["sha"] = sha
+
+                                    r2 = _req.put(api_url, json=payload, headers=headers)
+                                    if r2.status_code in (200, 201):
+                                        st.caption(f"☁️ {uploaded_file.name} GitHub'a yüklendi")
+                                    else:
+                                        st.warning(f"⚠️ GitHub yükleme: {r2.status_code} - {r2.text[:100]}")
+                            else:
+                                st.caption("ℹ️ GitHub token yok, sadece lokale kaydedildi")
+                        except Exception as gh_err:
+                            st.caption(f"ℹ️ GitHub push atlandı: {gh_err}")
 
                         with st.spinner("Veri işleniyor..."):
                             st.session_state['kup'] = KupVeri(DATA_DIR)
