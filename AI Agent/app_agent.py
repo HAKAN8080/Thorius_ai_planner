@@ -645,31 +645,53 @@ with st.sidebar:
                             if gh_token:
                                 import requests as _req
                                 from urllib.parse import quote
-                                for uploaded_file in uploaded_files:
-                                    file_content = uploaded_file.getbuffer().tobytes()
-                                    gh_path = f"AI Agent/data/{uploaded_file.name}"
-                                    api_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(gh_path, safe='/')}"
-                                    headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
+                                import base64 as _b64
 
-                                    # Mevcut dosyanın SHA'sını al (güncelleme için gerekli)
-                                    sha = None
-                                    r = _req.get(api_url, headers=headers)
-                                    if r.status_code == 200:
-                                        sha = r.json().get("sha")
+                                # Token doğrulama
+                                auth_check = _req.get("https://api.github.com/user",
+                                    headers={"Authorization": f"token {gh_token}"})
+                                if auth_check.status_code != 200:
+                                    st.warning(f"⚠️ GitHub token geçersiz! (HTTP {auth_check.status_code})")
+                                else:
+                                    gh_user = auth_check.json().get("login", "?")
+                                    st.caption(f"🔑 GitHub kullanıcı: {gh_user}")
 
-                                    import base64 as _b64
-                                    payload = {
-                                        "message": f"Veri güncelleme: {uploaded_file.name}",
-                                        "content": _b64.b64encode(file_content).decode('utf-8'),
-                                    }
-                                    if sha:
-                                        payload["sha"] = sha
-
-                                    r2 = _req.put(api_url, json=payload, headers=headers)
-                                    if r2.status_code in (200, 201):
-                                        st.caption(f"☁️ {uploaded_file.name} GitHub'a yüklendi")
+                                    # Repo erişim kontrolü
+                                    repo_check = _req.get(f"https://api.github.com/repos/{gh_repo}",
+                                        headers={"Authorization": f"token {gh_token}"})
+                                    if repo_check.status_code != 200:
+                                        st.warning(f"⚠️ Repo erişim yok: {gh_repo} (HTTP {repo_check.status_code}) - Token'ın bu repoya yazma yetkisi olmalı!")
                                     else:
-                                        st.warning(f"⚠️ GitHub yükleme: {r2.status_code} - {r2.text[:100]}")
+                                        perms = repo_check.json().get("permissions", {})
+                                        st.caption(f"📦 Repo izinleri: push={perms.get('push')}, admin={perms.get('admin')}")
+
+                                        if not perms.get("push"):
+                                            st.warning("⚠️ Token'ın bu repoya PUSH yetkisi yok! Token scope'una 'repo' eklenmeli.")
+                                        else:
+                                            for uploaded_file in uploaded_files:
+                                                file_content = uploaded_file.getbuffer().tobytes()
+                                                gh_path = f"AI Agent/data/{uploaded_file.name}"
+                                                api_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(gh_path, safe='/')}"
+                                                headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
+
+                                                # Mevcut dosyanın SHA'sını al (güncelleme için gerekli)
+                                                sha = None
+                                                r = _req.get(api_url, headers=headers)
+                                                if r.status_code == 200:
+                                                    sha = r.json().get("sha")
+
+                                                payload = {
+                                                    "message": f"Veri güncelleme: {uploaded_file.name}",
+                                                    "content": _b64.b64encode(file_content).decode('utf-8'),
+                                                }
+                                                if sha:
+                                                    payload["sha"] = sha
+
+                                                r2 = _req.put(api_url, json=payload, headers=headers)
+                                                if r2.status_code in (200, 201):
+                                                    st.caption(f"☁️ {uploaded_file.name} GitHub'a yüklendi")
+                                                else:
+                                                    st.warning(f"⚠️ GitHub yükleme hatası: {r2.status_code} - {r2.text[:200]}")
                             else:
                                 st.caption("ℹ️ GitHub token yok, sadece lokale kaydedildi")
                         except Exception as gh_err:
