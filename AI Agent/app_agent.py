@@ -644,11 +644,12 @@ with st.sidebar:
                             gh_repo = st.secrets.get("GITHUB_REPO", "HAKAN8080/Thorius_ai_planner")
                             if gh_token:
                                 import requests as _req
+                                from urllib.parse import quote
                                 for uploaded_file in uploaded_files:
                                     file_content = uploaded_file.getbuffer().tobytes()
                                     gh_path = f"AI Agent/data/{uploaded_file.name}"
-                                    api_url = f"https://api.github.com/repos/{gh_repo}/contents/{gh_path}"
-                                    headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github.v3+json"}
+                                    api_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(gh_path, safe='/')}"
+                                    headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
 
                                     # Mevcut dosyanın SHA'sını al (güncelleme için gerekli)
                                     sha = None
