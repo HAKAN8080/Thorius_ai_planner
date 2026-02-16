@@ -668,11 +668,26 @@ with st.sidebar:
                                         if not perms.get("push"):
                                             st.warning("⚠️ Token'ın bu repoya PUSH yetkisi yok! Token scope'una 'repo' eklenmeli.")
                                         else:
+                                            # Default branch'i al
+                                            default_branch = repo_check.json().get("default_branch", "main")
+
                                             for uploaded_file in uploaded_files:
                                                 file_content = uploaded_file.getbuffer().tobytes()
-                                                gh_path = f"AI Agent/data/{uploaded_file.name}"
+                                                # Türkçe/özel karakterleri ASCII-safe yap
+                                                import unicodedata, re
+                                                safe_name = uploaded_file.name
+                                                safe_name = unicodedata.normalize('NFKD', safe_name)
+                                                safe_name = safe_name.encode('ascii', 'ignore').decode('ascii')
+                                                safe_name = re.sub(r'[^\w\s\-\.]', '', safe_name).strip()
+                                                safe_name = re.sub(r'\s+', '_', safe_name)
+                                                if not safe_name:
+                                                    safe_name = "dosya.xlsx"
+
+                                                gh_path = f"AI Agent/data/{safe_name}"
                                                 api_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(gh_path, safe='/')}"
                                                 headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
+
+                                                st.caption(f"🔗 Yükleniyor: {safe_name}")
 
                                                 # Mevcut dosyanın SHA'sını al (güncelleme için gerekli)
                                                 sha = None
@@ -681,17 +696,18 @@ with st.sidebar:
                                                     sha = r.json().get("sha")
 
                                                 payload = {
-                                                    "message": f"Veri güncelleme: {uploaded_file.name}",
+                                                    "message": f"Veri güncelleme: {safe_name}",
                                                     "content": _b64.b64encode(file_content).decode('utf-8'),
+                                                    "branch": default_branch,
                                                 }
                                                 if sha:
                                                     payload["sha"] = sha
 
                                                 r2 = _req.put(api_url, json=payload, headers=headers)
                                                 if r2.status_code in (200, 201):
-                                                    st.caption(f"☁️ {uploaded_file.name} GitHub'a yüklendi")
+                                                    st.caption(f"☁️ {uploaded_file.name} → {safe_name} GitHub'a yüklendi")
                                                 else:
-                                                    st.warning(f"⚠️ GitHub yükleme hatası: {r2.status_code} - {r2.text[:200]}")
+                                                    st.warning(f"⚠️ GitHub yükleme hatası: {r2.status_code} - URL: {api_url} - {r2.text[:300]}")
                             else:
                                 st.caption("ℹ️ GitHub token yok, sadece lokale kaydedildi")
                         except Exception as gh_err:
