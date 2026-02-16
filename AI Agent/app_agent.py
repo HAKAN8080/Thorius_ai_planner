@@ -654,7 +654,10 @@ with st.sidebar:
                                     st.warning(f"⚠️ GitHub token geçersiz! (HTTP {auth_check.status_code})")
                                 else:
                                     gh_user = auth_check.json().get("login", "?")
-                                    st.caption(f"🔑 GitHub kullanıcı: {gh_user}")
+                                    # Token türünü ve scope'larını kontrol et
+                                    token_scopes = auth_check.headers.get("X-OAuth-Scopes", "YOK")
+                                    token_type = "Fine-grained" if gh_token.startswith("github_pat_") else "Classic" if gh_token.startswith("ghp_") else "Bilinmeyen"
+                                    st.caption(f"🔑 GitHub kullanıcı: {gh_user} | Token: {token_type} | Scopes: {token_scopes}")
 
                                     # Repo erişim kontrolü
                                     repo_check = _req.get(f"https://api.github.com/repos/{gh_repo}",
