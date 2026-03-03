@@ -679,14 +679,16 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
             kol_lower == 'main group'
         ):
             col_ana_grup = kol
-        # Ara Grup: 'Mevcut Ara Grup' (3 seviyeli formatta)
-        elif col_ara_grup is None and ('ara grup' in kol_lower or 'ara_grup' in kol_lower):
-            col_ara_grup = kol
-        # Alt Grup: 'Alt Grup', 'SubGroupDesc'
-        elif col_alt_grup is None and (
-            'alt grup' in kol_lower or 'alt_grup' in kol_lower or
+        # Ara Grup: 'Mevcut Ara Grup', 'SubGroupDesc' (CUBE formatı)
+        elif col_ara_grup is None and (
+            'ara grup' in kol_lower or 'ara_grup' in kol_lower or
             kol_lower == 'subgroupdesc' or kol_lower == 'sub group desc' or
-            kol_lower == 'sub group'
+            kol_lower == 'sub group' or 'subgroup' in kol_lower
+        ):
+            col_ara_grup = kol
+        # Alt Grup: 'Alt Grup' (sadece 3 seviyeli formatta)
+        elif col_alt_grup is None and (
+            'alt grup' in kol_lower or 'alt_grup' in kol_lower
         ):
             col_alt_grup = kol
 
