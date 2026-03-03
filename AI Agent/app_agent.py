@@ -980,10 +980,41 @@ with st.sidebar:
             options=["-- Seçiniz --"] + ana_grup_listesi,
             key="ana_grup_secim"
         )
-        
+
         if secili_ana_grup and secili_ana_grup != "-- Seçiniz --":
-            if st.button(f"🔎 {secili_ana_grup} Tam Detay", use_container_width=True, key="btn_detay"):
-                st.session_state['hizli_komut'] = f"{secili_ana_grup} grubunu detaylı analiz et. Mevcut tüm raporları kullanarak bütçe gerçekleşme, ciro, cover, marj, LFL performansı, alt grupları, sorunlu alanları ve aksiyon önerilerini sun."
+            # Ana grup analiz butonu
+            if st.button(f"🔎 {secili_ana_grup} Analiz", use_container_width=True, key="btn_detay"):
+                st.session_state['hizli_komut'] = f"{secili_ana_grup} grubunu detaylı analiz et."
+
+            # Alt grupları (ara_grup) listele
+            if 'kup' in st.session_state and hasattr(st.session_state['kup'], 'trading'):
+                trading_df = st.session_state['kup'].trading
+                if len(trading_df) > 0:
+                    # Ana gruba ait ara grupları bul
+                    ana_col = next((c for c in trading_df.columns if 'maingroupdesc' in c.lower() or 'ana' in c.lower()), None)
+                    ara_col = next((c for c in trading_df.columns if 'subgroupdesc' in c.lower() or 'ara' in c.lower()), None)
+
+                    if ana_col and ara_col:
+                        # Seçilen ana gruba ait ara grupları filtrele
+                        mask = trading_df[ana_col].astype(str).str.upper().str.contains(secili_ana_grup.upper(), na=False)
+                        ara_gruplar = trading_df[mask][ara_col].dropna().unique().tolist()
+                        ara_gruplar = [
+                            str(g).replace('Toplam ', '') for g in ara_gruplar
+                            if g and str(g).strip() != '' and str(g).lower() != 'nan'
+                            and 'toplam' not in str(g).lower()[:6]
+                        ]
+                        ara_gruplar = sorted(set(ara_gruplar))
+
+                        if ara_gruplar:
+                            secili_ara_grup = st.selectbox(
+                                f"📂 {secili_ana_grup} Alt Grupları:",
+                                options=["-- Alt Grup Seçiniz --"] + ara_gruplar,
+                                key="ara_grup_secim"
+                            )
+
+                            if secili_ara_grup and secili_ara_grup != "-- Alt Grup Seçiniz --":
+                                if st.button(f"🔍 {secili_ara_grup} Detay", use_container_width=True, key="btn_ara_detay"):
+                                    st.session_state['hizli_komut'] = f"{secili_ana_grup} > {secili_ara_grup} alt grubunu analiz et."
     else:
         st.caption("📁 Veri yüklenince ana gruplar burada listelenecek")
 
