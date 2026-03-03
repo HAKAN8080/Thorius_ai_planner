@@ -598,6 +598,29 @@ CEO Talepleri:
 3. Sezon dışı grupları gösterme (Plaj Havlusu, Ev Giysisi vb.)
 """
 
+def normalize_turkish(text: str) -> str:
+    """Türkçe karakterleri ASCII'ye çevir (karşılaştırma için)"""
+    if not text:
+        return ""
+    replacements = {
+        'ç': 'c', 'Ç': 'C',
+        'ğ': 'g', 'Ğ': 'G',
+        'ı': 'i', 'I': 'I',
+        'İ': 'I',
+        'ö': 'o', 'Ö': 'O',
+        'ş': 's', 'Ş': 'S',
+        'ü': 'u', 'Ü': 'U'
+    }
+    for tr, en in replacements.items():
+        text = text.replace(tr, en)
+    return text
+
+def turkish_match(query: str, target: str) -> bool:
+    """Türkçe karakterleri normalize ederek karşılaştır"""
+    q = normalize_turkish(query.upper().strip())
+    t = normalize_turkish(target.upper().strip())
+    return q == t or q in t or t in q
+
 def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> str:
     """
     Trading raporu analizi - 3 Seviyeli Hiyerarşi
@@ -1319,31 +1342,45 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
 
         # ÖNCELİKLE: Verilen isim ana grup mu, alt grup mu kontrol et
         # Alt grupta bulursa, otomatik ana grubunu tespit et
+        # Türkçe karakter normalize edilmiş karşılaştırma kullan
+        ana_grup_norm = normalize_turkish(ana_grup_upper)
+
         ana_grup_bulundu = False
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
-            if r_ana == ana_grup_upper or r_ana.replace('TOPLAM ', '') == ana_grup_upper:
+            r_ana_norm = normalize_turkish(r_ana)
+            if r_ana_norm == ana_grup_norm or r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm:
                 ana_grup_bulundu = True
                 break
 
         if not ana_grup_bulundu:
-            # Alt gruplarda ara
+            # Alt gruplarda ara (Türkçe normalize + kısaltma desteği)
             for r in all_rows:
                 r_ara = r['ara_grup'].upper().strip()
-                if r_ara == ana_grup_upper or ana_grup_upper in r_ara:
+                r_ara_norm = normalize_turkish(r_ara)
+                # Flexible matching: tam eşleşme, içerme, veya kısaltma başlangıcı
+                ara_eslesme = (r_ara_norm == ana_grup_norm or
+                              ana_grup_norm in r_ara_norm or
+                              r_ara_norm in ana_grup_norm or
+                              r_ara_norm.startswith(ana_grup_norm[:min(10, len(ana_grup_norm))]) or
+                              ana_grup_norm.startswith(r_ara_norm[:min(10, len(r_ara_norm))]))
+                if ara_eslesme:
                     # Alt grup bulundu! Ana grubunu al ve analiz et
                     gercek_ana_grup = r['ana_grup']
-                    print(f"   🔍 '{ana_grup}' alt grup olarak bulundu, ana grup: {gercek_ana_grup}")
+                    gercek_ara_grup = r['ara_grup']
+                    print(f"   🔍 '{ana_grup}' alt grup olarak bulundu: {gercek_ana_grup} > {gercek_ara_grup}")
                     # Bu alt grubu detaylı analiz et
-                    return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=ana_grup)
+                    return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=gercek_ara_grup)
 
         ara_gruplar = []
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
-            ana_match = (r_ana == ana_grup_upper or 
-                        r_ana == f"TOPLAM {ana_grup_upper}" or
-                        ana_grup_upper in r_ana or
-                        r_ana.replace('TOPLAM ', '') == ana_grup_upper)
+            r_ana_norm = normalize_turkish(r_ana)
+            # Türkçe karakterleri normalize ederek karşılaştır
+            ana_match = (r_ana_norm == ana_grup_norm or
+                        r_ana_norm == f"TOPLAM {ana_grup_norm}" or
+                        ana_grup_norm in r_ana_norm or
+                        r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm)
             
             if ana_match and is_ara_grup_toplam(r):
                 # CEO filtresini uygula
@@ -1356,12 +1393,13 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                 ara_gruplar.append(r)
         
         if not ara_gruplar:
-            # Alt grupları dene
+            # Alt grupları dene (Türkçe normalizasyon ile)
             for r in all_rows:
                 r_ana = r['ana_grup'].upper().strip()
-                ana_match = (r_ana == ana_grup_upper or 
-                            ana_grup_upper in r_ana or
-                            r_ana.replace('TOPLAM ', '') == ana_grup_upper)
+                r_ana_norm = normalize_turkish(r_ana)
+                ana_match = (r_ana_norm == ana_grup_norm or
+                            ana_grup_norm in r_ana_norm or
+                            r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm)
                 
                 if ana_match and r['alt_grup'] != '' and not r['alt_grup'].startswith('Toplam'):
                     # CEO filtresini uygula
@@ -1393,12 +1431,15 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                 
                 return "\n".join(sonuc)
             
-            # Son çare: benzer isimleri öner
+            # Son çare: benzer isimleri öner (Türkçe normalizasyon ile)
             benzer = []
+            ana_grup_norm_short = ana_grup_norm[:4] if len(ana_grup_norm) >= 4 else ana_grup_norm
             for r in all_rows:
                 r_ana = r['ana_grup'].upper().strip()
                 r_ara = r['ara_grup'].upper().strip()
-                if ana_grup_upper[:4] in r_ana or ana_grup_upper[:4] in r_ara:
+                r_ana_norm = normalize_turkish(r_ana)
+                r_ara_norm = normalize_turkish(r_ara)
+                if ana_grup_norm_short in r_ana_norm or ana_grup_norm_short in r_ara_norm:
                     if r_ana not in benzer and 'TOPLAM' not in r_ana:
                         benzer.append(r_ana)
                     if r_ara not in benzer and 'TOPLAM' not in r_ara:
@@ -1441,30 +1482,64 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
         # ARA GRUP DETAYI - ALT GRUPLARI GÖSTER VE FİLTRELE
         ana_grup_upper = ana_grup.upper()
         ara_grup_upper = ara_grup.upper()
-        
+        ana_grup_norm = normalize_turkish(ana_grup_upper)
+        ara_grup_norm = normalize_turkish(ara_grup_upper)
+
         alt_gruplar = []
+        bulunan_ara_grup = None  # Gerçek ara grup adını sakla
+
         for r in all_rows:
-            ana_match = r['ana_grup'].upper() == ana_grup_upper
-            ara_match = r['ara_grup'].upper() == ara_grup_upper
+            r_ana = r['ana_grup'].upper().strip()
+            r_ara = r['ara_grup'].upper().strip()
+            r_ana_norm = normalize_turkish(r_ana)
+            r_ara_norm = normalize_turkish(r_ara)
+
+            # Türkçe normalize ve flexible matching
+            ana_match = (r_ana_norm == ana_grup_norm or
+                        ana_grup_norm in r_ana_norm or
+                        r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm)
+
+            # Ara grup için akıllı eşleştirme (kısaltmalar dahil)
+            # "Türk Kahve Makinası" <-> "Türk Kahve M." eşleşmeli
+            ara_match = (r_ara_norm == ara_grup_norm or
+                        ara_grup_norm in r_ara_norm or
+                        r_ara_norm in ara_grup_norm or
+                        r_ara_norm.startswith(ara_grup_norm[:min(10, len(ara_grup_norm))]) or
+                        ara_grup_norm.startswith(r_ara_norm[:min(10, len(r_ara_norm))]))
+
             has_alt = r['alt_grup'] != '' and not r['alt_grup'].startswith('Toplam')
-            
+
             if ana_match and ara_match and has_alt:
+                if not bulunan_ara_grup:
+                    bulunan_ara_grup = r['ara_grup']  # İlk eşleşen gerçek adı sakla
                 # CEO filtresini uygula
                 filtrelensin, sebep = grup_filtrelensin_mi(r)
                 if filtrelensin:
                     filtrelenen_gruplar.append((r['alt_grup'], sebep))
                     continue
-                
+
                 r['ad'] = r['alt_grup']
                 alt_gruplar.append(r)
-        
+
         if not alt_gruplar:
+            # Ara grubu tüm veri içinde ara, belki ana grup yanlış
+            for r in all_rows:
+                r_ara = r['ara_grup'].upper().strip()
+                r_ara_norm = normalize_turkish(r_ara)
+                if ara_grup_norm in r_ara_norm or r_ara_norm in ara_grup_norm:
+                    gercek_ana = r['ana_grup']
+                    gercek_ara = r['ara_grup']
+                    print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
+                    return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara)
             return f"❌ '{ana_grup} > {ara_grup}' altında ürün grubu bulunamadı."
         
         alt_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
-        
+
+        # Gerçek bulunan grup adını kullan
+        gosterilecek_ara = bulunan_ara_grup if bulunan_ara_grup else ara_grup_upper
+
         sonuc.append("=" * 60)
-        sonuc.append(f"📊 {ana_grup_upper} > {ara_grup_upper} - MAL GRUBU DETAYI")
+        sonuc.append(f"📊 {ana_grup_upper} > {gosterilecek_ara} - MAL GRUBU DETAYI")
         if filtrelenen_gruplar:
             sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} mal grubu filtrelendi)")
         sonuc.append("=" * 60 + "\n")
