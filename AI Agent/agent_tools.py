@@ -1118,43 +1118,59 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             if ag['ty_birim_fiyat'] > 0 and ag['ly_birim_fiyat'] > 0:
                 fiyat_deg = ((ag['ty_birim_fiyat'] / ag['ly_birim_fiyat']) - 1) * 100
             marj_deg = ag['ty_marj'] - ag['ly_marj']
-            stok_ciro_oran = ag['stok_pay'] / ag['ciro_pay'] if ag['ciro_pay'] > 0 else 0
 
-            # Sorun tespiti
+            # Cover bazlı stok analizi (parametrik eşikler kullan)
+            cover_yuksek = 12  # varsayılan, CEO parametresinden gelebilir
+            cover_cok_yuksek = 20
+            cover_dusuk = 4
+            enflasyon = 35  # varsayılan enflasyon oranı
+
+            # Sorun tespiti - COVER BAZLI
             if ag['ciro_achieved'] < -10:
-                sorunlar.append(f"Butce %{ag['ciro_achieved']:+.0f} - ciddi sapma, satis aksiyonu gerekli")
+                sorunlar.append(f"Bütçe %{ag['ciro_achieved']:+.0f} - ciddi sapma, satış aksiyonu gerekli")
             elif ag['ciro_achieved'] < -5:
-                sorunlar.append(f"Butce %{ag['ciro_achieved']:+.0f} - hafif geride, takip edilmeli")
-            if ag['ty_cover'] > 14:
-                sorunlar.append(f"Cover {ag['ty_cover']:.1f} hf - stok eritme/indirim plani gerekli")
+                sorunlar.append(f"Bütçe %{ag['ciro_achieved']:+.0f} - hafif geride, takip edilmeli")
+
+            # COVER ANALİZİ (stok/ciro oranı DEĞİL!)
+            if ag['ty_cover'] > cover_cok_yuksek:
+                sorunlar.append(f"Cover {ag['ty_cover']:.0f} hf ÇOK YÜKSEK - %20-30 ek indirim + stok eritme kampanyası ŞART")
+            elif ag['ty_cover'] > cover_yuksek:
+                sorunlar.append(f"Cover {ag['ty_cover']:.0f} hf yüksek - stok eritme planı gerekli")
+            elif ag['ty_cover'] < cover_dusuk:
+                sorunlar.append(f"Cover {ag['ty_cover']:.0f} hf DÜŞÜK - ACİL SEVKİYAT gerekli, satış kaçırılıyor!")
+
             if ag['lfl_adet'] < -10:
-                sorunlar.append(f"LFL adet %{ag['lfl_adet']:+.0f} - trafik/talep sorunu, musteri kaybediyor olabilir")
+                sorunlar.append(f"LFL adet %{ag['lfl_adet']:+.0f} - trafik/talep sorunu, müşteri kaybediyor olabilir")
             if marj_deg < -3:
-                sorunlar.append(f"Marj {marj_deg:+.1f} puan erimis - promosyon baskisi veya maliyet artisi")
-            if stok_ciro_oran > 1.5:
-                sorunlar.append(f"Stok/Ciro orani {stok_ciro_oran:.1f}x - fazla stok baglaniyor, eritme sart")
-            if fiyat_deg > 0 and fiyat_deg < 30 and ag['ty_cover'] < 8:
-                sorunlar.append(f"Fiyat artisi %{fiyat_deg:.0f} enflasyonun altinda, cover {ag['ty_cover']:.0f} hf dusuk - bosuna ciro birakiliyor, promolar haric fiyat artisini degerlendir")
+                sorunlar.append(f"Marj {marj_deg:+.1f} puan erimiş - promosyon baskısı veya maliyet artışı")
+
+            # FİYAT ANALİZİ - enflasyon karşılaştırması
+            if fiyat_deg > 0 and fiyat_deg < enflasyon:
+                fiyat_farki = enflasyon - fiyat_deg
+                sorunlar.append(f"Fiyat artışı %{fiyat_deg:.0f} < enflasyon %{enflasyon} (-%{fiyat_farki:.0f} reel) - FİYAT KONTROLÜ gerekli!")
+            elif fiyat_deg <= 0:
+                sorunlar.append(f"Fiyat artışı %{fiyat_deg:.0f} - enflasyonun çok altında, ACİL fiyat revizyonu!")
 
             # Güçlü yön tespiti
             if ag['ciro_achieved'] > 10:
-                guclu.append(f"Butce %{ag['ciro_achieved']:+.0f} gerceklesme, hedef asiliyor")
+                guclu.append(f"Bütçe %{ag['ciro_achieved']:+.0f} gerçekleşme, hedef aşılıyor")
             if ag['lfl_ciro'] > 20:
-                guclu.append(f"LFL ciro %{ag['lfl_ciro']:+.0f} guclu buyume")
+                guclu.append(f"LFL ciro %{ag['lfl_ciro']:+.0f} güçlü büyüme")
             if marj_deg > 3:
-                guclu.append(f"Marj +{marj_deg:.1f} puan iyilesme - fiyatlama stratejisi basarili")
+                guclu.append(f"Marj +{marj_deg:.1f} puan iyileşme - fiyatlama stratejisi başarılı")
             if ag['lfl_adet'] > 10:
-                guclu.append(f"LFL adet %{ag['lfl_adet']:+.0f} - talep artiyor")
-            if fiyat_deg > 30:
-                guclu.append(f"Fiyat artisi %{fiyat_deg:.0f} enflasyon ustunde")
+                guclu.append(f"LFL adet %{ag['lfl_adet']:+.0f} - talep artıyor")
+            if fiyat_deg >= enflasyon:
+                guclu.append(f"Fiyat artışı %{fiyat_deg:.0f} >= enflasyon - reel fiyat korunuyor")
 
             if sorunlar or guclu:
                 emoji = "🔴" if len(sorunlar) >= 2 else ("⚠️" if sorunlar else "✅")
                 sonuc.append(f"\n{emoji} {ag['ad']} (Ciro Pay: %{ag['ciro_pay']:.1f}):")
-                sonuc.append(f"   Butce: {ag['ciro_achieved']:+.1f}% | LFL Ciro: {ag['lfl_ciro']:+.1f}% | LFL Adet: {ag['lfl_adet']:+.1f}% | Cover: {ag['ty_cover']:.1f} hf")
-                sonuc.append(f"   Marj: %{ag['ty_marj']:.1f} (GY: %{ag['ly_marj']:.1f}, {marj_deg:+.1f}p) | Stok/Ciro: {stok_ciro_oran:.1f}x")
+                sonuc.append(f"   Bütçe: {ag['ciro_achieved']:+.1f}% | LFL Ciro: {ag['lfl_ciro']:+.1f}% | LFL Adet: {ag['lfl_adet']:+.1f}% | Cover: {ag['ty_cover']:.1f} hf (GY: {ag['ly_cover']:.1f})")
+                sonuc.append(f"   Marj: %{ag['ty_marj']:.1f} (GY: %{ag['ly_marj']:.1f}, {marj_deg:+.1f}p)")
                 if fiyat_deg != 0:
-                    sonuc.append(f"   Birim Fiyat: {ag['ty_birim_fiyat']:.0f} TL (GY: {ag['ly_birim_fiyat']:.0f}, %{fiyat_deg:+.0f})")
+                    reel_fiyat = fiyat_deg - enflasyon
+                    sonuc.append(f"   Birim Fiyat: {ag['ty_birim_fiyat']:.0f} TL (GY: {ag['ly_birim_fiyat']:.0f}, %{fiyat_deg:+.0f} nominal, %{reel_fiyat:+.0f} reel)")
                 for s in sorunlar:
                     sonuc.append(f"   ❌ {s}")
                 for g in guclu:
@@ -1208,7 +1224,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             zayif_gruplar = [ag for ag in ana_gruplar if ag['ciro_achieved'] < -10 and ag['ciro_pay'] > 3]
             if zayif_gruplar:
                 for zg in zayif_gruplar:
-                    weaknesses.append(f"{zg['ad']}: butce %{zg['ciro_achieved']:+.0f}, stok/ciro {zg['stok_pay']/zg['ciro_pay']:.1f}x" if zg['ciro_pay'] > 0 else f"{zg['ad']}: butce %{zg['ciro_achieved']:+.0f}")
+                    weaknesses.append(f"{zg['ad']}: bütçe %{zg['ciro_achieved']:+.0f}, cover {zg['ty_cover']:.0f} hf")
 
             yuksek_cover = [ag for ag in ana_gruplar if ag['ty_cover'] > 14 and ag['ciro_pay'] > 2]
             if yuksek_cover:
@@ -1468,15 +1484,29 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             marj_str = f"{ag['ty_marj']:.0f}" if ag.get('ty_marj', 0) > 0 else "-"
             sonuc.append(f"{ad:<26} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {marj_str:>5}% {cover_str:>6} {lfl_str:>7}")
         
-        # Stok/Ciro dengesizliği
+        # COVER BAZLI STOK ANALİZİ
         sonuc.append("\n" + "-" * 60)
+        sonuc.append("📦 STOK DURUMU (Cover Bazlı):")
+        cover_yuksek = 12
+        cover_cok_yuksek = 20
+        cover_dusuk = 4
+        enflasyon = 35
+
         for ag in ara_gruplar:
-            if ag['ciro_pay'] > 0:
-                oran = ag['stok_pay'] / ag['ciro_pay']
-                if oran > 1.3:
-                    sonuc.append(f"⚠️ {ag['ad']}: Stok fazla (stok/ciro: {oran:.1f}x) → ERİTME")
-                elif oran < 0.7:
-                    sonuc.append(f"⚠️ {ag['ad']}: Stok az (stok/ciro: {oran:.1f}x) → SEVKİYAT")
+            fiyat_deg = 0
+            if ag.get('ty_birim_fiyat', 0) > 0 and ag.get('ly_birim_fiyat', 0) > 0:
+                fiyat_deg = ((ag['ty_birim_fiyat'] / ag['ly_birim_fiyat']) - 1) * 100
+
+            if ag['ty_cover'] > cover_cok_yuksek:
+                sonuc.append(f"🔴 {ag['ad']}: Cover {ag['ty_cover']:.0f} hf ÇOK YÜKSEK → %20-30 EK İNDİRİM + ERİTME KAMPANYASI")
+            elif ag['ty_cover'] > cover_yuksek:
+                sonuc.append(f"⚠️ {ag['ad']}: Cover {ag['ty_cover']:.0f} hf yüksek → STOK ERİTME planı")
+            elif ag['ty_cover'] < cover_dusuk:
+                sonuc.append(f"🚨 {ag['ad']}: Cover {ag['ty_cover']:.0f} hf DÜŞÜK → ACİL SEVKİYAT!")
+
+            # Fiyat uyarısı
+            if fiyat_deg > 0 and fiyat_deg < enflasyon - 10:
+                sonuc.append(f"   💰 Fiyat artışı %{fiyat_deg:.0f} < enflasyon %{enflasyon} → FİYAT KONTROLÜ!")
         
         sonuc.append(f"\n💡 Detay için: trading_analiz(ana_grup='{ana_grup}', ara_grup='ARA_GRUP_ADI')")
         
@@ -3632,6 +3662,32 @@ SYSTEM_PROMPT = """Sen deneyimli bir Retail Planner'sın. Adın "Sanal Planner".
    - `kar_pay` = Bu kategorinin TOPLAM KARDAN aldığı PAY (örn: %2.8 = toplam karın %2.8'i bu gruptan)
    - `ty_marj` = Gerçek BRÜT KAR MARJI (örn: %62 = satışın %62'si kar)
    - Kullanıcı "kar marjı" derse ty_marj'ı söyle, "kar payı" derse kar_pay'ı söyle. KARIŞTIRMA!
+
+## 📈 GRUP ANALİZİ SIRASI (BU SIRALAMA İLE ANALİZ YAP!)
+Bir ürün grubu sorulduğunda MUTLAKA bu sırayla analiz et:
+
+1. **BÜTÇE GERÇEKLEŞMESİ:** `Achieved TY Sales Budget Value TRY` kolonundan bütçe gerçekleşme oranını belirt
+2. **LFL CİRO BÜYÜMESİ:** `LFL Sales Value TYvsLY LC%` kolonundan geçen yıla göre ciro büyümesini söyle
+3. **COVER KARŞILAŞTIRMASI:** `TY Store Cover Unit` ve `LY Store Cover Unit` kolonlarını karşılaştır
+   - Cover DÜŞTÜYSE → "Stok yönetimi iyileşmiş"
+   - Cover ARTTIYSA → "Stok birikimi var, eritme gerekli"
+4. **FİYAT DEĞİŞİMİ ANALİZİ:** `TY Unit Sales Price LC` ve `LY LFL Unit Sales Price LC` kolonlarını karşılaştır
+   - Fiyat artışı < %35 (enflasyon) → "⚠️ Reel fiyat düşüşü, fiyat kontrolü gerekli!"
+   - Fiyat artışı >= %35 → "Fiyat enflasyonu yakalamış"
+5. **HAFTALIK CİRO DEĞİŞİMİ:** `Sales Value TyTWvsTyLW TRY%` kolonundan haftalık trend bilgisi ver
+6. **TOPLAM vs SUBGROUP:**
+   - MainGroupDesc kolonunda "Toplam X" olan satırlar o grubun toplamıdır
+   - ÖNCE toplamı analiz et, SONRA subgroup'lara geç
+   - Cirosu çok küçük olan subgroup'ları ATLA, bahsetme
+   - **DELİST'ten HİÇBİR ZAMAN bahsetme!**
+7. **KAR MARJI ANALİZİ:** `TY Gross Margin LC%` ve `LY Gross Margin LC%` karşılaştır
+   - Marj düştüyse → "Karlılık baskı altında"
+   - Marj arttıysa → "Karlılık iyileşmiş"
+8. **STOK KAYNAKLI SATIŞ KAYBI RİSKİ:**
+   - Eğer `LFL Store Stock Unit TYvsLY%` EKSİ ve `TY Store Cover Unit` < 8 ise:
+   - → "🚨 STOK KAYNAKLI SATIŞ KAYBI RİSKİ! Stok geçen yıla göre düşük ve cover da düşük - satış kaçırılıyor olabilir, ACİL SEVKİYAT!"
+
+**ÖNEMLİ:** Stok/Ciro oranı KULLANMA! Sadece COVER değerlerini kullan.
 
 ## 🗣️ KONUŞMA TARZI
 - Doğal, akıcı cümlelerle anlat
