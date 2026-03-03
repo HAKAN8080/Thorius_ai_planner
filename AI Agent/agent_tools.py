@@ -621,7 +621,7 @@ def turkish_match(query: str, target: str) -> bool:
     t = normalize_turkish(target.upper().strip())
     return q == t or q in t or t in q
 
-def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> str:
+def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _recursion_depth: int = 0) -> str:
     """
     Trading raporu analizi - 3 Seviyeli Hiyerarşi
     
@@ -643,7 +643,11 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
     
     if len(kup.trading) == 0:
         return "❌ Trading raporu yüklenmemiş."
-    
+
+    # Sonsuz döngü koruması
+    if _recursion_depth > 2:
+        return f"❌ '{ana_grup}' için analiz yapılamadı - grup bulunamadı."
+
     # =====================================================================
     # FİLTRELEME KURALLARI - CEO TALEBİ
     # =====================================================================
@@ -1370,23 +1374,30 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                 break
 
         if not ana_grup_bulundu:
-            # Alt gruplarda ara (Türkçe normalize + kısaltma desteği)
+            # Alt gruplarda ara - ÖNCE TAM EŞLEŞMEYİ DENE
+            bulunan = None
             for r in all_rows:
                 r_ara = r['ara_grup'].upper().strip()
                 r_ara_norm = normalize_turkish(r_ara)
-                # Flexible matching: tam eşleşme, içerme, veya kısaltma başlangıcı
-                ara_eslesme = (r_ara_norm == ana_grup_norm or
-                              ana_grup_norm in r_ara_norm or
-                              r_ara_norm in ana_grup_norm or
-                              r_ara_norm.startswith(ana_grup_norm[:min(10, len(ana_grup_norm))]) or
-                              ana_grup_norm.startswith(r_ara_norm[:min(10, len(r_ara_norm))]))
-                if ara_eslesme:
-                    # Alt grup bulundu! Ana grubunu al ve analiz et
-                    gercek_ana_grup = r['ana_grup']
-                    gercek_ara_grup = r['ara_grup']
-                    print(f"   🔍 '{ana_grup}' alt grup olarak bulundu: {gercek_ana_grup} > {gercek_ara_grup}")
-                    # Bu alt grubu detaylı analiz et
-                    return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=gercek_ara_grup)
+                # 1. Tam eşleşme (en güvenilir)
+                if r_ara_norm == ana_grup_norm:
+                    bulunan = r
+                    break
+
+            # 2. Tam eşleşme yoksa, içerme dene (min 5 karakter)
+            if not bulunan and len(ana_grup_norm) >= 5:
+                for r in all_rows:
+                    r_ara = r['ara_grup'].upper().strip()
+                    r_ara_norm = normalize_turkish(r_ara)
+                    if ana_grup_norm in r_ara_norm:
+                        bulunan = r
+                        break
+
+            if bulunan:
+                gercek_ana_grup = bulunan['ana_grup']
+                gercek_ara_grup = bulunan['ara_grup']
+                print(f"   🔍 '{ana_grup}' alt grup olarak bulundu: {gercek_ana_grup} > {gercek_ara_grup}")
+                return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=gercek_ara_grup, _recursion_depth=_recursion_depth+1)
 
         # ÖNCELİKLE: "Toplam [Ana Grup]" satırını bul ve ÖZET olarak göster
         ana_grup_toplam = None
@@ -1589,13 +1600,9 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                         ana_grup_norm in r_ana_norm or
                         r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm)
 
-            # Ara grup için akıllı eşleştirme (kısaltmalar dahil)
-            # "Türk Kahve Makinası" <-> "Türk Kahve M." eşleşmeli
+            # Ara grup için eşleştirme - tam eşleşme veya içerme (min 5 karakter)
             ara_match = (r_ara_norm == ara_grup_norm or
-                        ara_grup_norm in r_ara_norm or
-                        r_ara_norm in ara_grup_norm or
-                        r_ara_norm.startswith(ara_grup_norm[:min(10, len(ara_grup_norm))]) or
-                        ara_grup_norm.startswith(r_ara_norm[:min(10, len(r_ara_norm))]))
+                        (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_norm))
 
             has_alt = r['alt_grup'] != '' and not r['alt_grup'].startswith('Toplam')
 
@@ -1612,15 +1619,27 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                 alt_gruplar.append(r)
 
         if not alt_gruplar:
-            # Ara grubu tüm veri içinde ara, belki ana grup yanlış
+            # Ara grubu tüm veri içinde ara - ÖNCE TAM EŞLEŞMEYİ DENE
+            bulunan_r = None
             for r in all_rows:
                 r_ara = r['ara_grup'].upper().strip()
                 r_ara_norm = normalize_turkish(r_ara)
-                if ara_grup_norm in r_ara_norm or r_ara_norm in ara_grup_norm:
-                    gercek_ana = r['ana_grup']
-                    gercek_ara = r['ara_grup']
-                    print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
-                    return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara)
+                if r_ara_norm == ara_grup_norm:
+                    bulunan_r = r
+                    break
+            # Tam eşleşme yoksa içerme dene (min 5 karakter)
+            if not bulunan_r and len(ara_grup_norm) >= 5:
+                for r in all_rows:
+                    r_ara = r['ara_grup'].upper().strip()
+                    r_ara_norm = normalize_turkish(r_ara)
+                    if ara_grup_norm in r_ara_norm:
+                        bulunan_r = r
+                        break
+            if bulunan_r:
+                gercek_ana = bulunan_r['ana_grup']
+                gercek_ara = bulunan_r['ara_grup']
+                print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
+                return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara, _recursion_depth=_recursion_depth+1)
             return f"❌ '{ana_grup} > {ara_grup}' altında ürün grubu bulunamadı."
         
         alt_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
