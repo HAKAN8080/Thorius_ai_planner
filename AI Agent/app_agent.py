@@ -680,7 +680,14 @@ with st.sidebar:
                     try:
                         from agent_tools import KupVeri
 
-                        # Lokale kaydet
+                        # ÖNCEKİ VERİLERİ TEMİZLE (eski dosyaları sil)
+                        for eski_dosya in os.listdir(DATA_DIR):
+                            if eski_dosya.endswith(('.xlsx', '.xls', '.csv')):
+                                eski_path = os.path.join(DATA_DIR, eski_dosya)
+                                os.remove(eski_path)
+                                st.caption(f"🗑️ Eski dosya silindi: {eski_dosya}")
+
+                        # Yeni dosyaları kaydet
                         for uploaded_file in uploaded_files:
                             file_path = os.path.join(DATA_DIR, uploaded_file.name)
                             with open(file_path, 'wb') as f:
@@ -722,6 +729,26 @@ with st.sidebar:
                                         else:
                                             # Default branch'i al
                                             default_branch = repo_check.json().get("default_branch", "main")
+                                            headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
+
+                                            # ÖNCEKİ DOSYALARI GITHUB'DAN SİL
+                                            try:
+                                                data_api = f"https://api.github.com/repos/{gh_repo}/contents/AI Agent/data"
+                                                eski_liste = _req.get(data_api, headers=headers)
+                                                if eski_liste.status_code == 200:
+                                                    for eski in eski_liste.json():
+                                                        if eski['name'].endswith(('.xlsx', '.xls', '.csv')) and eski['name'] != '.gitkeep':
+                                                            sil_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(eski['path'], safe='/')}"
+                                                            sil_payload = {
+                                                                "message": f"Eski veri silindi: {eski['name']}",
+                                                                "sha": eski['sha'],
+                                                                "branch": default_branch
+                                                            }
+                                                            sil_r = _req.delete(sil_url, json=sil_payload, headers=headers)
+                                                            if sil_r.status_code in (200, 204):
+                                                                st.caption(f"🗑️ GitHub'dan silindi: {eski['name']}")
+                                            except Exception as sil_err:
+                                                st.caption(f"⚠️ Eski dosya silme hatası: {sil_err}")
 
                                             for uploaded_file in uploaded_files:
                                                 file_content = uploaded_file.getbuffer().tobytes()
@@ -737,7 +764,6 @@ with st.sidebar:
 
                                                 gh_path = f"AI Agent/data/{safe_name}"
                                                 api_url = f"https://api.github.com/repos/{gh_repo}/contents/{quote(gh_path, safe='/')}"
-                                                headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
 
                                                 st.caption(f"🔗 Yükleniyor: {safe_name}")
 
