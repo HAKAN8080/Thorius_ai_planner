@@ -984,7 +984,7 @@ with st.sidebar:
         if secili_ana_grup and secili_ana_grup != "-- Seçiniz --":
             # Ana grup analiz butonu
             if st.button(f"🔎 {secili_ana_grup} Analiz", use_container_width=True, key="btn_detay"):
-                st.session_state['hizli_komut'] = f"{secili_ana_grup} grubunu detaylı analiz et."
+                st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup}' parametresiyle çağır."
 
             # Alt grupları (ara_grup) listele
             if 'kup' in st.session_state and hasattr(st.session_state['kup'], 'trading'):
@@ -1014,7 +1014,7 @@ with st.sidebar:
 
                             if secili_ara_grup and secili_ara_grup != "-- Alt Grup Seçiniz --":
                                 if st.button(f"🔍 {secili_ara_grup} Detay", use_container_width=True, key="btn_ara_detay"):
-                                    st.session_state['hizli_komut'] = f"{secili_ana_grup} > {secili_ara_grup} alt grubunu analiz et."
+                                    st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup}' ve ara_grup='{secili_ara_grup}' parametreleriyle çağır."
     else:
         st.caption("📁 Veri yüklenince ana gruplar burada listelenecek")
 
