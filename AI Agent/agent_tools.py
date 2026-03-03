@@ -3720,6 +3720,30 @@ Kullanıcı "kapasite analizi yap", "kapasite", "mağaza doluluk", "mağaza kapa
 | Doluluk | > %100 | 🔴 "Mağazalar dolu, kapasite sorunu" |
 | Doluluk | < %70 | ⚠️ "Mağaza boş, ürün eksik" |
 
+## 🎯 ANA GRUP ANALİZİ KURALI (ÇOK ÖNEMLİ!)
+
+Kullanıcı bir **ANA GRUP ADI** ile analiz istediğinde, MUTLAKA `trading_analiz(ana_grup="GRUP_ADI")` çağır!
+
+**Tanınan Ana Gruplar:**
+KEA (Küçük Ev Aletleri), Sofra, Sofra Sunum, Sofra İçecek, Sofra Takımları, Mutfak, Pişirme, Banyo, Yatak Örtüsü, Nevresim, Çarşaf, Yastık, Yorgan, Battaniye, Salon, Aksesuar, Kozmetik, vb.
+
+**Örnek Kullanıcı Soruları → Doğru Tool Çağrısı:**
+- "KEA bütçe sapmasını analiz et" → `trading_analiz(ana_grup="KEA")`
+- "Sofra performansı nasıl?" → `trading_analiz(ana_grup="Sofra")`
+- "Mutfak grubunu incele" → `trading_analiz(ana_grup="Mutfak")`
+- "Banyo detaylı analiz" → `trading_analiz(ana_grup="Banyo")`
+- "Pişirme cover durumu" → `trading_analiz(ana_grup="Pişirme")` + `cover_diagram_analiz()`
+
+**YANLIŞ DAVRANIŞ (YAPMA!):**
+- "KEA bütçe sapması" dendiğinde TÜM ŞİRKETİ analiz etme!
+- Grup adı verilmişse o gruba odaklan, genel analiz yapma!
+
+**DOĞRU DAVRANIŞ:**
+1. Kullanıcı mesajında ana grup adı var mı kontrol et
+2. Varsa `trading_analiz(ana_grup="...")` ile o grubu çağır
+3. Sadece O GRUBUN ara gruplarını ve alt gruplarını analiz et
+4. Genel şirket verisi istenmemişse, şirket özeti YAPMA!
+
 ## ❌ YAPMA!
 - Tek tool ile yetinme - 4 tool kullan
 - Tool çıktısında veri yoksa sessizce atla, diğer tool'lara odaklan
@@ -3790,17 +3814,32 @@ VM önerilerini stok/fiyat aksiyonlarıyla birlikte kullan, tek başına yeterli
 Her zaman Türkçe, detaylı ve stratejik ol!"""
 
 
-def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kurallari: dict = None) -> str:
+def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kurallari: dict = None, hizli_mod: bool = False) -> str:
     """Agent'ı çalıştır ve sonuç al
-    
+
     analiz_kurallari: Kullanıcının tanımladığı eşikler ve yorumlar
+    hizli_mod: True ise Haiku kullanır (10x ucuz, basit sorgular için)
     """
-    
+
     import time
     start_time = time.time()
-    
-    print(f"\n🤖 AGENT BAŞLADI: {kullanici_mesaji[:50]}...")
+
+    # Model seçimi - hızlı mod veya otomatik algılama
+    basit_sorgular = ["merhaba", "selam", "nasıl", "teşekkür", "tamam", "evet", "hayır", "ok"]
+    mesaj_lower = kullanici_mesaji.lower().strip()
+
+    # Çok kısa veya basit sorgular için otomatik Haiku
+    otomatik_haiku = len(kullanici_mesaji) < 20 or any(mesaj_lower.startswith(s) for s in basit_sorgular)
+
+    if hizli_mod or otomatik_haiku:
+        model = "claude-3-5-haiku-20241022"  # 10x ucuz
+        print(f"\n⚡ HIZLI MOD (Haiku): {kullanici_mesaji[:50]}...")
+    else:
+        model = "claude-sonnet-4-20250514"  # Detaylı analiz için
+        print(f"\n🤖 AGENT BAŞLADI: {kullanici_mesaji[:50]}...")
+
     print(f"   API Key: {api_key[:20]}...")
+    print(f"   Model: {model}")
     
     try:
         client = anthropic.Anthropic(api_key=api_key, timeout=120.0)  # 120 saniye timeout
@@ -3871,6 +3910,45 @@ def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kur
         system_prompt = SYSTEM_PROMPT + kural_eki
         print(f"   📋 Analiz kuralları eklendi ({len(kural_eki)} karakter)")
     
+    # ==========================================================================
+    # ANA GRUP ALGILAMA - Kullanıcı mesajında ana grup adı var mı?
+    # ==========================================================================
+    ana_grup_listesi = [
+        "KEA", "Küçük Ev Aletleri",
+        "Sofra", "Sofra Sunum", "Sofra İçecek", "Sofra Takımları",
+        "Mutfak", "Pişirme", "Banyo", "Salon",
+        "Yatak Örtüsü", "Nevresim", "Çarşaf", "Yastık", "Yorgan", "Battaniye",
+        "Aksesuar", "Kozmetik", "Parfüm", "Cilt Bakım", "Saç Bakım",
+        "Renkli Kozmetik", "Makyaj"
+    ]
+
+    mesaj_lower = kullanici_mesaji.lower()
+    algılanan_grup = None
+
+    for grup in ana_grup_listesi:
+        if grup.lower() in mesaj_lower:
+            algılanan_grup = grup
+            break
+
+    # Eğer ana grup algılandıysa, sistem promptuna hatırlatma ekle
+    if algılanan_grup:
+        grup_hatirlatma = f"""
+
+## 🎯 KULLANICI BU SORUDA SPESİFİK BİR ANA GRUP İSTİYOR!
+
+**Algılanan Ana Grup: {algılanan_grup}**
+
+⚠️ ZORUNLU TALİMAT:
+1. MUTLAKA `trading_analiz(ana_grup="{algılanan_grup}")` çağır!
+2. SADECE {algılanan_grup} grubunun ara ve alt gruplarını analiz et!
+3. Şirket geneli veya diğer ana grupları analiz ETME!
+4. {algılanan_grup}'ın bütçe, ciro, cover, LFL, marj metriklerine odaklan!
+
+Bu bir GRUP ANALİZİ isteği - şirket özeti DEĞİL!
+"""
+        system_prompt = system_prompt + grup_hatirlatma
+        print(f"   🎯 Ana grup algılandı: {algılanan_grup}")
+
     messages = [{"role": "user", "content": kullanici_mesaji}]
     
     tum_cevaplar = []
@@ -3889,14 +3967,28 @@ def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kur
             break
         
         try:
+            # Prompt caching ile maliyet optimizasyonu (%80 tasarruf)
             response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=4096,  # Daha uzun yanıtlar için artırıldı
-                system=system_prompt,
+                model=model,
+                max_tokens=4096,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"}  # 5 dakika cache
+                    }
+                ],
                 tools=TOOLS,
                 messages=messages
             )
-            print(f"   ✅ API yanıt aldı: stop_reason={response.stop_reason}")
+            # Cache durumunu göster
+            cache_info = ""
+            if hasattr(response, 'usage'):
+                if hasattr(response.usage, 'cache_creation_input_tokens'):
+                    cache_info = f" | cache_create={response.usage.cache_creation_input_tokens}"
+                if hasattr(response.usage, 'cache_read_input_tokens'):
+                    cache_info += f" cache_read={response.usage.cache_read_input_tokens}"
+            print(f"   ✅ API yanıt aldı: stop_reason={response.stop_reason}{cache_info}")
         except Exception as api_error:
             tum_cevaplar.append(f"\n❌ API Hatası: {str(api_error)}")
             break
