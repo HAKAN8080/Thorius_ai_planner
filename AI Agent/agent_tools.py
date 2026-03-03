@@ -1609,18 +1609,25 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
             r_ana_norm = normalize_turkish(r_ana)
             r_ara_norm = normalize_turkish(r_ara)
 
-            # Türkçe normalize ve flexible matching
+            # Türkçe normalize ve flexible matching + TOPLAM prefix
+            r_ana_clean = r_ana_norm.replace('TOPLAM ', '')
+            r_ara_clean = r_ara_norm.replace('TOPLAM ', '')
+
             ana_match = (r_ana_norm == ana_grup_norm or
-                        ana_grup_norm in r_ana_norm or
-                        r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm)
+                        r_ana_clean == ana_grup_norm or
+                        ana_grup_norm in r_ana_norm)
 
-            # Ara grup için eşleştirme - tam eşleşme veya içerme (min 5 karakter)
+            # Ara grup için eşleştirme - TOPLAM prefix'i de kontrol et
             ara_match = (r_ara_norm == ara_grup_norm or
-                        (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_norm))
+                        r_ara_clean == ara_grup_norm or
+                        (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_norm) or
+                        (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_clean))
 
+            # 2 seviyeli data'da alt_grup boş olabilir - bu durumda ara_grup'u göster
             has_alt = r['alt_grup'] != '' and not r['alt_grup'].startswith('Toplam')
+            is_two_level = r['alt_grup'] == ''  # 2 seviyeli data
 
-            if ana_match and ara_match and has_alt:
+            if ana_match and ara_match and (has_alt or is_two_level):
                 if not bulunan_ara_grup:
                     bulunan_ara_grup = r['ara_grup']  # İlk eşleşen gerçek adı sakla
                 # CEO filtresini uygula
@@ -1629,7 +1636,8 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                     filtrelenen_gruplar.append((r['alt_grup'], sebep))
                     continue
 
-                r['ad'] = r['alt_grup']
+                # 2 seviyeli data'da alt_grup boş, ara_grup'u kullan
+                r['ad'] = r['alt_grup'] if r['alt_grup'] else r['ara_grup']
                 alt_gruplar.append(r)
 
         if not alt_gruplar:
