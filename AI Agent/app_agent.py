@@ -837,7 +837,7 @@ with st.sidebar:
 
     # Hızlı Mod
     st.subheader("⚡ Hızlı Mod")
-    hizli_mod = st.toggle("Hızlı Mod", value=True, help="Detaylı analiz ve derin düşünme için kaldırın")
+    hizli_mod = st.toggle("Hızlı Mod", value=False, help="Hızlı ama basit cevaplar için açın. Detaylı analiz için kapalı tutun.")
     st.session_state['hizli_mod'] = hizli_mod
 
     st.markdown("---")
