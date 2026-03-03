@@ -624,10 +624,11 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
     # =====================================================================
     # FİLTRELEME KURALLARI - CEO TALEBİ
     # =====================================================================
+    # NOT: HAVLU ana grup olarak kalmalı, sadece PLAJ HAVLUSU hariç
     SEZON_DISI_GRUPLAR = [
-        'PLAJ', 'HAVLU', 'EV GİYSİ', 'EV GİYİM', 'PLAJ HAVLUSU',
-        'YAZ HAVLU', 'DENİZ', 'TATIL', 'MAYO', 'BİKİNİ',
-        'BEACH', 'TOWEL', 'HOME WEAR'
+        'PLAJ HAVLU', 'PLAJ HAVLUSU', 'YAZ HAVLU', 'DENİZ HAVLU',
+        'EV GİYSİ', 'EV GİYİM', 'MAYO', 'BİKİNİ',
+        'BEACH TOWEL', 'HOME WEAR'
     ]
     
     sonuc = []
@@ -833,9 +834,12 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
         if 'DELIST' in ana or 'DELIST' in ara or 'DELIST' in alt:
             return (True, f"Kapsam disi: {ana or ara or alt}")
         
-        # 2. SEZON DIŞI kontrolü
+        # 2. SEZON DIŞI kontrolü - tam eşleşme veya başlangıç kontrolü
         for sezon in SEZON_DISI_GRUPLAR:
-            if sezon in ana or sezon in ara or sezon in alt:
+            # Tam eşleşme veya "PLAJ HAVLU" gibi başlangıç kontrolü
+            if ana == sezon or ara == sezon or alt == sezon:
+                return (True, f"Sezon dışı grup: {ana or ara or alt}")
+            if ana.startswith(sezon) or ara.startswith(sezon) or alt.startswith(sezon):
                 return (True, f"Sezon dışı grup: {ana or ara or alt}")
         
         # 3. LFL < %5 kontrolü
@@ -3725,7 +3729,7 @@ Kullanıcı "kapasite analizi yap", "kapasite", "mağaza doluluk", "mağaza kapa
 Kullanıcı bir **ANA GRUP ADI** ile analiz istediğinde, MUTLAKA `trading_analiz(ana_grup="GRUP_ADI")` çağır!
 
 **Tanınan Ana Gruplar:**
-KEA (Küçük Ev Aletleri), Sofra, Sofra Sunum, Sofra İçecek, Sofra Takımları, Mutfak, Pişirme, Banyo, Yatak Örtüsü, Nevresim, Çarşaf, Yastık, Yorgan, Battaniye, Salon, Aksesuar, Kozmetik, vb.
+KEA (Küçük Ev Aletleri), Sofra, Sofra Sunum, Sofra İçecek, Sofra Takımları, Mutfak, Pişirme, Banyo, Havlu, Halı - Kilim, Pike, Yatak Örtüsü, Nevresim, Çarşaf, Yastık, Yorgan, Battaniye, Salon, Aksesuar, Kozmetik, Dünya Markaları vb.
 
 **Örnek Kullanıcı Soruları → Doğru Tool Çağrısı:**
 - "KEA bütçe sapmasını analiz et" → `trading_analiz(ana_grup="KEA")`
@@ -3743,6 +3747,21 @@ KEA (Küçük Ev Aletleri), Sofra, Sofra Sunum, Sofra İçecek, Sofra Takımlar�
 2. Varsa `trading_analiz(ana_grup="...")` ile o grubu çağır
 3. Sadece O GRUBUN ara gruplarını ve alt gruplarını analiz et
 4. Genel şirket verisi istenmemişse, şirket özeti YAPMA!
+
+## 🔍 ALT GRUP (SUBGROUP) ANALİZİ
+
+Kullanıcı bir **ALT GRUP** istediğinde (örn: "Çerezlik", "Tepsi", "Banyo Havlusu"):
+1. Önce hangi ANA GRUP altında olduğunu belirle
+2. `trading_analiz(ana_grup="ANA_GRUP", ara_grup="ALT_GRUP")` çağır
+
+**Örnek Alt Grup Talepleri:**
+- "Çerezlik performansı" → `trading_analiz(ana_grup="Sofra Sunum", ara_grup="Çerezlik")`
+- "Tepsi satışları" → `trading_analiz(ana_grup="Sofra Sunum", ara_grup="Tepsi")`
+- "Banyo havlusu" → `trading_analiz(ana_grup="Havlu", ara_grup="Banyo Havlusu")`
+- "Türk kahvesi makinesi" → `trading_analiz(ana_grup="KEA", ara_grup="Türk Kahve Makinesi")`
+- "El havlusu analizi" → `trading_analiz(ana_grup="Havlu", ara_grup="El Havlusu")`
+
+**HATIRLA:** SubGroupDesc = Alt Grup = Ara Grup. CUBE formatında 2 seviye var: MainGroupDesc (Ana Grup) ve SubGroupDesc (Alt Grup/Ara Grup).
 
 ## ❌ YAPMA!
 - Tek tool ile yetinme - 4 tool kullan
@@ -3919,7 +3938,8 @@ def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kur
         "Mutfak", "Pişirme", "Banyo", "Salon",
         "Yatak Örtüsü", "Nevresim", "Çarşaf", "Yastık", "Yorgan", "Battaniye",
         "Aksesuar", "Kozmetik", "Parfüm", "Cilt Bakım", "Saç Bakım",
-        "Renkli Kozmetik", "Makyaj"
+        "Renkli Kozmetik", "Makyaj",
+        "Havlu", "Halı", "Halı - Kilim", "Pike", "Dünya Markaları"
     ]
 
     mesaj_lower = kullanici_mesaji.lower()
