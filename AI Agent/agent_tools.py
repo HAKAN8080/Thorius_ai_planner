@@ -648,14 +648,12 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         return f"❌ '{ana_grup}' bulunamadı. 👉 Sol menüdeki 'Ana Grup Seçin' dropdown'ından seçim yapabilirsiniz."
 
     # =====================================================================
-    # FİLTRELEME KURALLARI - CEO TALEBİ
+    # FİLTRELEME KURALLARI - SADECE DELIST FİLTRELENİR
     # =====================================================================
-    # NOT: HAVLU ana grup olarak kalmalı, sadece PLAJ HAVLUSU hariç
-    SEZON_DISI_GRUPLAR = [
-        'PLAJ HAVLU', 'PLAJ HAVLUSU', 'YAZ HAVLU', 'DENİZ HAVLU',
-        'EV GİYSİ', 'EV GİYİM', 'MAYO', 'BİKİNİ',
-        'BEACH TOWEL', 'HOME WEAR'
-    ]
+    # NOT: Sezon dışı ve LFL < %5 filtreleri KALDIRILDI
+    # Bu liste sadece referans için tutuluyor, değerlendirme yorumlarında kullanılabilir
+    # SEZON_DISI_GRUPLAR = ['PLAJ HAVLU', 'PLAJ HAVLUSU', 'YAZ HAVLU', 'DENİZ HAVLU',
+    #     'EV GİYSİ', 'EV GİYİM', 'MAYO', 'BİKİNİ', 'BEACH TOWEL', 'HOME WEAR']
     
     sonuc = []
     df = kup.trading.copy()
@@ -846,34 +844,26 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         return v
     
     # =====================================================================
-    # FİLTRELEME FONKSİYONU - CEO TALEBİ
+    # FİLTRELEME FONKSİYONU - SADECE DELIST FİLTRELENİR
     # =====================================================================
     def grup_filtrelensin_mi(row_data: dict) -> tuple:
         """
         Grup filtrelenmeli mi kontrol et
+        SADECE DELIST olan gruplar filtrelenir!
+        Sezon dışı ve LFL < %5 grupları FİLTRELENMEZ, sadece değerlendirmede not olarak gösterilir.
         Returns: (filtrelensin_mi: bool, sebep: str)
         """
         ana = row_data.get('ana_grup', '').upper()
         ara = row_data.get('ara_grup', '').upper()
         alt = row_data.get('alt_grup', '').upper()
-        lfl_ciro = row_data.get('lfl_ciro', 0)
-        
-        # 1. Kapsam dışı grup kontrolü
+
+        # SADECE DELIST FİLTRESİ - diğer filtreler KALDIRILDI
         if 'DELIST' in ana or 'DELIST' in ara or 'DELIST' in alt:
-            return (True, f"Kapsam disi: {ana or ara or alt}")
-        
-        # 2. SEZON DIŞI kontrolü - tam eşleşme veya başlangıç kontrolü
-        for sezon in SEZON_DISI_GRUPLAR:
-            # Tam eşleşme veya "PLAJ HAVLU" gibi başlangıç kontrolü
-            if ana == sezon or ara == sezon or alt == sezon:
-                return (True, f"Sezon dışı grup: {ana or ara or alt}")
-            if ana.startswith(sezon) or ara.startswith(sezon) or alt.startswith(sezon):
-                return (True, f"Sezon dışı grup: {ana or ara or alt}")
-        
-        # 3. LFL < %5 kontrolü
-        if lfl_ciro < 5 and lfl_ciro > -999:  # -999 = veri yok demek
-            return (True, f"LFL < %5: {lfl_ciro:.1f}%")
-        
+            return (True, f"Delist: {ana or ara or alt}")
+
+        # Sezon dışı ve LFL < %5 artık FİLTRELENMİYOR
+        # Bu bilgiler sadece değerlendirme yorumlarında kullanılacak
+
         return (False, "")
     
     # Satır verilerini çıkar
@@ -1094,7 +1084,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         sonuc.append("\n" + "=" * 60)
         sonuc.append("🏆 ANA GRUPLAR PERFORMANSI")
         if filtrelenen_gruplar:
-            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} grup filtrelendi: LFL<%5, Sezon disi vb.)")
+            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} delist grup hariç tutuldu)")
         sonuc.append("=" * 60 + "\n")
 
         sonuc.append(f"{'Ana Grup':<22} {'Bütçe%':>7} {'LFL Stok':>9} {'LFL Adet':>9} {'LFL Ciro':>9} {'Cover':>6}")
@@ -1345,16 +1335,8 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                     if sg['haftalik_ciro'] != 0:
                         sonuc.append(f"         Haftalik Ciro: %{sg['haftalik_ciro']:+.1f}")
         
-        # Filtrelenen grupları göster (delist hariç - bahsetme!)
-        if filtrelenen_gruplar:
-            gosterilecek = [(g, s) for g, s in filtrelenen_gruplar if 'delist' not in g.lower() and 'delist' not in s.lower()]
-            if gosterilecek:
-                sonuc.append(f"\n🚫 FİLTRELENEN GRUPLAR ({len(gosterilecek)} adet):")
-                for grup, sebep in gosterilecek[:5]:
-                    sonuc.append(f"   . {grup}: {sebep}")
-                if len(gosterilecek) > 5:
-                    sonuc.append(f"   ... ve {len(gosterilecek)-5} grup daha")
-        
+        # NOT: Sadece delist gruplar filtreleniyor, bunlar gösterilmiyor
+
         sonuc.append(f"\n💡 Detay için: trading_analiz(ana_grup='GRUP_ADI')")
         
     elif ara_grup is None:
@@ -1365,13 +1347,17 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         # Alt grupta bulursa, otomatik ana grubunu tespit et
         # Türkçe karakter normalize edilmiş karşılaştırma kullan
         ana_grup_norm = normalize_turkish(ana_grup_upper)
+        print(f"   🔍 ANA GRUP ARAMA: '{ana_grup}' → normalize: '{ana_grup_norm}'")
 
         ana_grup_bulundu = False
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
             r_ana_norm = normalize_turkish(r_ana)
-            if r_ana_norm == ana_grup_norm or r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm:
+            # TOPLAM prefix ve TOTAL suffix kontrolü (CUBE formatı: "KEA Total")
+            r_ana_clean = r_ana_norm.replace('TOPLAM ', '').replace(' TOTAL', '')
+            if r_ana_norm == ana_grup_norm or r_ana_clean == ana_grup_norm or ana_grup_norm in r_ana_norm:
                 ana_grup_bulundu = True
+                print(f"   ✅ Ana grup bulundu: '{r_ana}'")
                 break
 
         if not ana_grup_bulundu:
@@ -1515,7 +1501,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                 sonuc.append("=" * 60)
                 sonuc.append(f"📊 {ana_grup_upper} - ALT GRUP DETAYI")
                 if filtrelenen_gruplar:
-                    sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} alt grup filtrelendi)")
+                    sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} delist alt grup hariç)")
                 sonuc.append("=" * 60 + "\n")
                 
                 sonuc.append(f"{'Alt Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
@@ -1557,7 +1543,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
             sonuc.append("=" * 60 + "\n")
 
         if filtrelenen_gruplar:
-            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} ara grup filtrelendi)")
+            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} delist ara grup hariç)")
 
         sonuc.append(f"\n{'Ara Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
         sonuc.append("-" * 75)
@@ -1602,8 +1588,11 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         ana_grup_norm = normalize_turkish(ana_grup_upper)
         ara_grup_norm = normalize_turkish(ara_grup_upper)
 
+        print(f"   🔍 ARA GRUP DETAY: ana='{ana_grup}' ({ana_grup_norm}), ara='{ara_grup}' ({ara_grup_norm})")
+
         alt_gruplar = []
         bulunan_ara_grup = None  # Gerçek ara grup adını sakla
+        bulunan_ana_grup_toplam = None  # Ana+Ara toplam satırını sakla
 
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
@@ -1611,60 +1600,104 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
             r_ana_norm = normalize_turkish(r_ana)
             r_ara_norm = normalize_turkish(r_ara)
 
-            # Türkçe normalize ve flexible matching + TOPLAM prefix
-            r_ana_clean = r_ana_norm.replace('TOPLAM ', '')
-            r_ara_clean = r_ara_norm.replace('TOPLAM ', '')
+            # Türkçe normalize ve flexible matching + TOPLAM prefix + " Total" suffix
+            r_ana_clean = r_ana_norm.replace('TOPLAM ', '').replace(' TOTAL', '')
+            r_ara_clean = r_ara_norm.replace('TOPLAM ', '').replace(' TOTAL', '')
 
             ana_match = (r_ana_norm == ana_grup_norm or
                         r_ana_clean == ana_grup_norm or
-                        ana_grup_norm in r_ana_norm)
+                        ana_grup_norm in r_ana_norm or
+                        r_ana_norm.replace(' TOTAL', '') == ana_grup_norm)
 
-            # Ara grup için eşleştirme - TOPLAM prefix'i de kontrol et
+            # Ara grup için eşleştirme - TOPLAM prefix + kısaltma kontrolü
             ara_match = (r_ara_norm == ara_grup_norm or
                         r_ara_clean == ara_grup_norm or
                         (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_norm) or
                         (len(ara_grup_norm) >= 5 and ara_grup_norm in r_ara_clean))
 
+            # Kısaltma eşleşmesi: "TURK KAHVE M." vs "TURK KAHVE MAKINESI"
+            if not ara_match and len(ara_grup_norm) >= 8 and len(r_ara_norm) >= 8:
+                ara_temiz = ara_grup_norm.replace('.', '').replace(' ', '')
+                r_ara_temiz = r_ara_norm.replace('.', '').replace(' ', '')
+                if ara_temiz.startswith(r_ara_temiz[:8]) or r_ara_temiz.startswith(ara_temiz[:8]):
+                    ara_match = True
+
             # 2 seviyeli data'da alt_grup boş olabilir - bu durumda ara_grup'u göster
             has_alt = r['alt_grup'] != '' and not r['alt_grup'].startswith('Toplam')
             is_two_level = r['alt_grup'] == ''  # 2 seviyeli data
 
-            if ana_match and ara_match and (has_alt or is_two_level):
+            if ana_match and ara_match:
                 if not bulunan_ara_grup:
                     bulunan_ara_grup = r['ara_grup']  # İlk eşleşen gerçek adı sakla
-                # CEO filtresini uygula
-                filtrelensin, sebep = grup_filtrelensin_mi(r)
-                if filtrelensin:
-                    filtrelenen_gruplar.append((r['alt_grup'], sebep))
-                    continue
+                    print(f"   ✅ EŞLEŞME BULUNDU: {r['ana_grup']} > {r['ara_grup']} > {r['alt_grup']}")
 
-                # 2 seviyeli data'da alt_grup boş, ara_grup'u kullan
-                r['ad'] = r['alt_grup'] if r['alt_grup'] else r['ara_grup']
-                alt_gruplar.append(r)
+                # 2 seviyeli CUBE verisinde: ara grup satırının kendisini sakla (toplam bilgileri için)
+                if is_two_level and not bulunan_ana_grup_toplam:
+                    bulunan_ana_grup_toplam = r.copy()
+
+                if has_alt or is_two_level:
+                    # CEO filtresini SADECE 3 seviyeli veride uygula
+                    # 2 seviyeli veride dropdown'dan seçilen satırı FİLTRELEME!
+                    if has_alt:  # 3 seviyeli: filtre uygula
+                        filtrelensin, sebep = grup_filtrelensin_mi(r)
+                        if filtrelensin:
+                            filtrelenen_gruplar.append((r['alt_grup'], sebep))
+                            continue
+                    # 2 seviyeli: filtre UYGULAMA, kullanıcı dropdown'dan seçti
+
+                    # 2 seviyeli data'da alt_grup boş, ara_grup'u kullan
+                    r['ad'] = r['alt_grup'] if r['alt_grup'] else r['ara_grup']
+                    alt_gruplar.append(r)
 
         if not alt_gruplar:
-            # Ara grubu tüm veri içinde ara - ÖNCE TAM EŞLEŞMEYİ DENE
-            bulunan_r = None
-            for r in all_rows:
-                r_ara = r['ara_grup'].upper().strip()
-                r_ara_norm = normalize_turkish(r_ara)
-                if r_ara_norm == ara_grup_norm:
-                    bulunan_r = r
-                    break
-            # Tam eşleşme yoksa içerme dene (min 5 karakter)
-            if not bulunan_r and len(ara_grup_norm) >= 5:
+            print(f"   ⚠️ alt_gruplar boş! bulunan_ana_grup_toplam: {bulunan_ana_grup_toplam is not None}")
+
+            # 2 seviyeli CUBE verisinde: eşleşen satır bulundu ama alt_gruplar'a eklenmedi
+            # Bu durumda o tek satırı direkt göster
+            if bulunan_ana_grup_toplam:
+                print(f"   ℹ️ 2-seviyeli veri: tek satır bulundu, direkt gösteriliyor")
+                r = bulunan_ana_grup_toplam
+                r['ad'] = r['ara_grup']
+                alt_gruplar = [r]
+            else:
+                # Ara grubu tüm veri içinde ara - ÖNCE TAM EŞLEŞMEYİ DENE
+                bulunan_r = None
                 for r in all_rows:
                     r_ara = r['ara_grup'].upper().strip()
+                    r_ana = r['ana_grup'].upper().strip()
                     r_ara_norm = normalize_turkish(r_ara)
-                    if ara_grup_norm in r_ara_norm:
+                    r_ana_norm = normalize_turkish(r_ana)
+
+                    # Hem ana hem ara eşleşmeli
+                    if r_ara_norm == ara_grup_norm and (r_ana_norm == ana_grup_norm or ana_grup_norm in r_ana_norm):
                         bulunan_r = r
                         break
-            if bulunan_r:
-                gercek_ana = bulunan_r['ana_grup']
-                gercek_ara = bulunan_r['ara_grup']
-                print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
-                return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara, _recursion_depth=_recursion_depth+1)
-            return f"❌ '{ana_grup} > {ara_grup}' bulunamadı.\n👉 Sol menüden '{ana_grup}' seçin, ardından alt grup listesinden doğru grubu seçebilirsiniz."
+                    # Sadece ara eşleşme (fallback)
+                    if not bulunan_r and r_ara_norm == ara_grup_norm:
+                        bulunan_r = r
+
+                # Tam eşleşme yoksa içerme dene (min 5 karakter)
+                if not bulunan_r and len(ara_grup_norm) >= 5:
+                    for r in all_rows:
+                        r_ara = r['ara_grup'].upper().strip()
+                        r_ara_norm = normalize_turkish(r_ara)
+                        if ara_grup_norm in r_ara_norm:
+                            bulunan_r = r
+                            break
+
+                if bulunan_r:
+                    gercek_ana = bulunan_r['ana_grup']
+                    gercek_ara = bulunan_r['ara_grup']
+                    print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
+                    return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara, _recursion_depth=_recursion_depth+1)
+
+                # Debug için mevcut değerleri listele
+                mevcut_ana = list(set([r['ana_grup'] for r in all_rows if r['ana_grup']]))[:10]
+                mevcut_ara = list(set([r['ara_grup'] for r in all_rows if r['ara_grup']]))[:10]
+                print(f"   ❌ BULUNAMADI! Mevcut ana gruplar: {mevcut_ana}")
+                print(f"   ❌ Mevcut ara gruplar: {mevcut_ara}")
+
+                return f"❌ '{ana_grup} > {ara_grup}' bulunamadı.\n👉 Sol menüden '{ana_grup}' seçin, ardından alt grup listesinden doğru grubu seçebilirsiniz."
         
         alt_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
 
@@ -1674,7 +1707,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
         sonuc.append("=" * 60)
         sonuc.append(f"📊 {ana_grup_upper} > {gosterilecek_ara} - MAL GRUBU DETAYI")
         if filtrelenen_gruplar:
-            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} mal grubu filtrelendi)")
+            sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} delist mal grubu hariç)")
         sonuc.append("=" * 60 + "\n")
         
         sonuc.append(f"{'Mal Grubu':<22} {'Ciro%':>6} {'Marj%':>6} {'Stok%':>6} {'Cover':>6} {'LFL':>7} {'Bütçe':>7}")
