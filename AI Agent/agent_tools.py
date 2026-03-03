@@ -1316,7 +1316,27 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
     elif ara_grup is None:
         # ANA GRUP DETAYI - ARA GRUPLARI GÖSTER VE FİLTRELE
         ana_grup_upper = ana_grup.upper().strip()
-        
+
+        # ÖNCELİKLE: Verilen isim ana grup mu, alt grup mu kontrol et
+        # Alt grupta bulursa, otomatik ana grubunu tespit et
+        ana_grup_bulundu = False
+        for r in all_rows:
+            r_ana = r['ana_grup'].upper().strip()
+            if r_ana == ana_grup_upper or r_ana.replace('TOPLAM ', '') == ana_grup_upper:
+                ana_grup_bulundu = True
+                break
+
+        if not ana_grup_bulundu:
+            # Alt gruplarda ara
+            for r in all_rows:
+                r_ara = r['ara_grup'].upper().strip()
+                if r_ara == ana_grup_upper or ana_grup_upper in r_ara:
+                    # Alt grup bulundu! Ana grubunu al ve analiz et
+                    gercek_ana_grup = r['ana_grup']
+                    print(f"   🔍 '{ana_grup}' alt grup olarak bulundu, ana grup: {gercek_ana_grup}")
+                    # Bu alt grubu detaylı analiz et
+                    return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=ana_grup)
+
         ara_gruplar = []
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
@@ -1373,7 +1393,20 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                 
                 return "\n".join(sonuc)
             
-            return f"❌ '{ana_grup}' ana grubu bulunamadı."
+            # Son çare: benzer isimleri öner
+            benzer = []
+            for r in all_rows:
+                r_ana = r['ana_grup'].upper().strip()
+                r_ara = r['ara_grup'].upper().strip()
+                if ana_grup_upper[:4] in r_ana or ana_grup_upper[:4] in r_ara:
+                    if r_ana not in benzer and 'TOPLAM' not in r_ana:
+                        benzer.append(r_ana)
+                    if r_ara not in benzer and 'TOPLAM' not in r_ara:
+                        benzer.append(r_ara)
+
+            if benzer:
+                return f"❌ '{ana_grup}' bulunamadı. Benzer gruplar: {', '.join(benzer[:5])}"
+            return f"❌ '{ana_grup}' ana grup veya alt grup olarak bulunamadı."
         
         ara_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
         
