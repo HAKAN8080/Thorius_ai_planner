@@ -1388,6 +1388,61 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                     # Bu alt grubu detaylı analiz et
                     return trading_analiz(kup, ana_grup=gercek_ana_grup, ara_grup=gercek_ara_grup)
 
+        # ÖNCELİKLE: "Toplam [Ana Grup]" satırını bul ve ÖZET olarak göster
+        ana_grup_toplam = None
+        for r in all_rows:
+            r_ana = r['ana_grup'].upper().strip()
+            r_ana_norm = normalize_turkish(r_ana)
+            # "Toplam Havlu" gibi satırı bul (ara_grup ve alt_grup boş olmalı)
+            if (r_ana_norm == f"TOPLAM {ana_grup_norm}" or
+                r_ana_norm.replace('TOPLAM ', '') == ana_grup_norm) and is_ana_grup_toplam(r):
+                ana_grup_toplam = r
+                break
+
+        if ana_grup_toplam:
+            gt = ana_grup_toplam
+            sonuc.append("=" * 60)
+            sonuc.append(f"📊 {gt['ana_grup']} - GENEL ÖZET")
+            sonuc.append("=" * 60 + "\n")
+
+            # Fiyat değişimi hesapla
+            fiyat_deg = 0
+            if gt.get('ty_birim_fiyat', 0) > 0 and gt.get('ly_birim_fiyat', 0) > 0:
+                fiyat_deg = ((gt['ty_birim_fiyat'] / gt['ly_birim_fiyat']) - 1) * 100
+            enflasyon = 35
+
+            # Ana metrikler
+            sonuc.append(f"📈 BÜTÇE: %{gt['ciro_achieved']:+.1f} gerçekleşme")
+            sonuc.append(f"📊 LFL CİRO: %{gt['lfl_ciro']:+.1f} büyüme (Adet: %{gt['lfl_adet']:+.1f})")
+            sonuc.append(f"📦 COVER: {gt['ty_cover']:.1f} hafta (GY: {gt['ly_cover']:.1f} hf)")
+            sonuc.append(f"💰 MARJ: %{gt['ty_marj']:.1f} (GY: %{gt['ly_marj']:.1f}, {gt['ty_marj']-gt['ly_marj']:+.1f}p)")
+            sonuc.append(f"📅 HAFTALIK DEĞİŞİM: %{gt['haftalik_ciro']:+.1f}")
+
+            if fiyat_deg != 0:
+                reel_fiyat = fiyat_deg - enflasyon
+                fiyat_emoji = "✅" if fiyat_deg >= enflasyon else "⚠️"
+                sonuc.append(f"💵 FİYAT: {gt['ty_birim_fiyat']:.0f} TL (GY: {gt['ly_birim_fiyat']:.0f}, %{fiyat_deg:+.0f} nominal, %{reel_fiyat:+.0f} reel) {fiyat_emoji}")
+
+            # Stok kaynaklı satış kaybı riski kontrolü
+            if gt.get('lfl_stok', 0) < 0 and gt['ty_cover'] < 8:
+                sonuc.append(f"\n🚨 STOK KAYNAKLI SATIŞ KAYBI RİSKİ!")
+                sonuc.append(f"   LFL Stok: %{gt['lfl_stok']:+.1f} (düşüş) + Cover: {gt['ty_cover']:.1f} hf (düşük)")
+                sonuc.append(f"   → ACİL SEVKİYAT gerekli, satış kaçırılıyor!")
+
+            # Cover bazlı uyarılar
+            if gt['ty_cover'] > 20:
+                sonuc.append(f"\n🔴 COVER ÇOK YÜKSEK ({gt['ty_cover']:.0f} hf) → %20-30 EK İNDİRİM + ERİTME KAMPANYASI")
+            elif gt['ty_cover'] > 12:
+                sonuc.append(f"\n⚠️ COVER YÜKSEK ({gt['ty_cover']:.0f} hf) → Stok eritme planı gerekli")
+
+            # Fiyat uyarısı
+            if fiyat_deg > 0 and fiyat_deg < enflasyon - 5:
+                sonuc.append(f"\n⚠️ FİYAT ENFLASYONUN ALTINDA! (%{fiyat_deg:.0f} < %{enflasyon}) → Fiyat kontrolü gerekli")
+
+            sonuc.append("\n" + "-" * 60)
+            sonuc.append("📋 ARA GRUP DETAYI:")
+            sonuc.append("-" * 60)
+
         ara_gruplar = []
         for r in all_rows:
             r_ana = r['ana_grup'].upper().strip()
@@ -1467,14 +1522,17 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             return f"❌ '{ana_grup}' ana grup veya alt grup olarak bulunamadı."
         
         ara_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
-        
-        sonuc.append("=" * 60)
-        sonuc.append(f"📊 {ana_grup_upper} - ARA GRUP DETAYI")
+
+        # Eğer ana_grup_toplam bulunmadıysa header ekle
+        if not ana_grup_toplam:
+            sonuc.append("=" * 60)
+            sonuc.append(f"📊 {ana_grup_upper} - ARA GRUP DETAYI")
+            sonuc.append("=" * 60 + "\n")
+
         if filtrelenen_gruplar:
             sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} ara grup filtrelendi)")
-        sonuc.append("=" * 60 + "\n")
-        
-        sonuc.append(f"{'Ara Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
+
+        sonuc.append(f"\n{'Ara Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
         sonuc.append("-" * 75)
 
         for ag in ara_gruplar:
