@@ -599,26 +599,25 @@ CEO Talepleri:
 """
 
 def normalize_turkish(text: str) -> str:
-    """Türkçe karakterleri ASCII'ye çevir (karşılaştırma için)"""
+    """Türkçe karakterleri ASCII'ye çevir ve UPPER yap (karşılaştırma için)"""
     if not text:
         return ""
+    # Önce Türkçe karakterleri değiştir, SONRA upper yap
     replacements = {
-        'ç': 'c', 'Ç': 'C',
-        'ğ': 'g', 'Ğ': 'G',
-        'ı': 'i', 'I': 'I',
-        'İ': 'I',
-        'ö': 'o', 'Ö': 'O',
-        'ş': 's', 'Ş': 'S',
-        'ü': 'u', 'Ü': 'U'
+        # Küçük harfler
+        'ç': 'c', 'ğ': 'g', 'ı': 'i', 'i': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
+        # Büyük harfler
+        'Ç': 'C', 'Ğ': 'G', 'I': 'I', 'İ': 'I', 'Ö': 'O', 'Ş': 'S', 'Ü': 'U'
     }
     for tr, en in replacements.items():
         text = text.replace(tr, en)
-    return text
+    # Her zaman büyük harfe çevir (karşılaştırma tutarlılığı için)
+    return text.upper()
 
 def turkish_match(query: str, target: str) -> bool:
     """Türkçe karakterleri normalize ederek karşılaştır"""
-    q = normalize_turkish(query.upper().strip())
-    t = normalize_turkish(target.upper().strip())
+    q = normalize_turkish(query.strip())  # normalize_turkish zaten upper yapıyor
+    t = normalize_turkish(target.strip())
     return q == t or q in t or t in q
 
 def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _recursion_depth: int = 0) -> str:
@@ -646,7 +645,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
 
     # Sonsuz döngü koruması
     if _recursion_depth > 2:
-        return f"❌ '{ana_grup}' için analiz yapılamadı - grup bulunamadı."
+        return f"❌ '{ana_grup}' bulunamadı. 👉 Sol menüdeki 'Ana Grup Seçin' dropdown'ından seçim yapabilirsiniz."
 
     # =====================================================================
     # FİLTRELEME KURALLARI - CEO TALEBİ
@@ -1393,6 +1392,21 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                         bulunan = r
                         break
 
+            # 3. Kısaltma eşleşmesi: "Türk Kahve M." <-> "Türk Kahve Makinası"
+            if not bulunan and len(ana_grup_norm) >= 8:
+                for r in all_rows:
+                    r_ara = r['ara_grup'].upper().strip()
+                    r_ara_norm = normalize_turkish(r_ara)
+                    # Kısa olan uzun olanın başlangıcı mı?
+                    kisa = r_ara_norm if len(r_ara_norm) < len(ana_grup_norm) else ana_grup_norm
+                    uzun = ana_grup_norm if len(r_ara_norm) < len(ana_grup_norm) else r_ara_norm
+                    # Noktayı ve boşlukları temizle, ilk N karakteri karşılaştır
+                    kisa_temiz = kisa.replace('.', '').replace(' ', '')
+                    uzun_temiz = uzun.replace('.', '').replace(' ', '')
+                    if len(kisa_temiz) >= 8 and uzun_temiz.startswith(kisa_temiz[:len(kisa_temiz)-1]):
+                        bulunan = r
+                        break
+
             if bulunan:
                 gercek_ana_grup = bulunan['ana_grup']
                 gercek_ara_grup = bulunan['ara_grup']
@@ -1529,8 +1543,8 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                         benzer.append(r_ara)
 
             if benzer:
-                return f"❌ '{ana_grup}' bulunamadı. Benzer gruplar: {', '.join(benzer[:5])}"
-            return f"❌ '{ana_grup}' ana grup veya alt grup olarak bulunamadı."
+                return f"❌ '{ana_grup}' bulunamadı. Benzer gruplar: {', '.join(benzer[:5])}\n👉 Sol menüdeki 'Ana Grup Seçin' dropdown'ından doğru grubu seçebilirsiniz."
+            return f"❌ '{ana_grup}' bulunamadı.\n👉 Sol menüdeki 'Ana Grup Seçin' dropdown'ından seçim yapın, ardından alt grup listesinden seçebilirsiniz."
         
         ara_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
 
@@ -1640,7 +1654,7 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None, _re
                 gercek_ara = bulunan_r['ara_grup']
                 print(f"   🔍 '{ara_grup}' bulundu: {gercek_ana} > {gercek_ara}")
                 return trading_analiz(kup, ana_grup=gercek_ana, ara_grup=gercek_ara, _recursion_depth=_recursion_depth+1)
-            return f"❌ '{ana_grup} > {ara_grup}' altında ürün grubu bulunamadı."
+            return f"❌ '{ana_grup} > {ara_grup}' bulunamadı.\n👉 Sol menüden '{ana_grup}' seçin, ardından alt grup listesinden doğru grubu seçebilirsiniz."
         
         alt_gruplar.sort(key=lambda x: x['ciro_pay'], reverse=True)
 
