@@ -1420,14 +1420,15 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
                     sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} alt grup filtrelendi)")
                 sonuc.append("=" * 60 + "\n")
                 
-                sonuc.append(f"{'Alt Grup':<28} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Kar%':>6} {'Cover':>6} {'LFL':>7}")
+                sonuc.append(f"{'Alt Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
                 sonuc.append("-" * 75)
-                
+
                 for ag in ara_gruplar[:15]:
-                    ad = ag['ad'][:27]
+                    ad = ag['ad'][:25]
                     cover_str = f"{ag['ty_cover']:.1f}"
                     lfl_str = f"{ag['lfl_ciro']:+.0f}%"
-                    sonuc.append(f"{ad:<28} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {ag['kar_pay']:>5.1f}% {cover_str:>6} {lfl_str:>7}")
+                    marj_str = f"{ag['ty_marj']:.0f}" if ag.get('ty_marj', 0) > 0 else "-"
+                    sonuc.append(f"{ad:<26} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {marj_str:>5}% {cover_str:>6} {lfl_str:>7}")
                 
                 return "\n".join(sonuc)
             
@@ -1457,14 +1458,15 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} ara grup filtrelendi)")
         sonuc.append("=" * 60 + "\n")
         
-        sonuc.append(f"{'Ara Grup':<28} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Kar%':>6} {'Cover':>6} {'LFL':>7}")
+        sonuc.append(f"{'Ara Grup':<26} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Marj%':>6} {'Cover':>6} {'LFL':>7}")
         sonuc.append("-" * 75)
-        
+
         for ag in ara_gruplar:
-            ad = ag['ad'][:27]
+            ad = ag['ad'][:25]
             cover_str = f"{ag['ty_cover']:.1f}"
             lfl_str = f"{ag['lfl_ciro']:+.0f}%"
-            sonuc.append(f"{ad:<28} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {ag['kar_pay']:>5.1f}% {cover_str:>6} {lfl_str:>7}")
+            marj_str = f"{ag['ty_marj']:.0f}" if ag.get('ty_marj', 0) > 0 else "-"
+            sonuc.append(f"{ad:<26} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {marj_str:>5}% {cover_str:>6} {lfl_str:>7}")
         
         # Stok/Ciro dengesizliği
         sonuc.append("\n" + "-" * 60)
@@ -1544,15 +1546,16 @@ def trading_analiz(kup: KupVeri, ana_grup: str = None, ara_grup: str = None) -> 
             sonuc.append(f"(🚫 {len(filtrelenen_gruplar)} mal grubu filtrelendi)")
         sonuc.append("=" * 60 + "\n")
         
-        sonuc.append(f"{'Mal Grubu':<24} {'Ciro%':>6} {'Adet%':>6} {'Stok%':>6} {'Cover':>6} {'LFL':>7} {'Bütçe':>7}")
+        sonuc.append(f"{'Mal Grubu':<22} {'Ciro%':>6} {'Marj%':>6} {'Stok%':>6} {'Cover':>6} {'LFL':>7} {'Bütçe':>7}")
         sonuc.append("-" * 75)
-        
+
         for ag in alt_gruplar:
-            ad = ag['ad'][:23]
+            ad = ag['ad'][:21]
             cover_str = f"{ag['ty_cover']:.1f}"
             lfl_str = f"{ag['lfl_ciro']:+.0f}%"
             butce_str = f"{ag['ciro_achieved']:+.0f}%"
-            sonuc.append(f"{ad:<24} {ag['ciro_pay']:>5.1f}% {ag['adet_pay']:>5.1f}% {ag['stok_pay']:>5.1f}% {cover_str:>6} {lfl_str:>7} {butce_str:>7}")
+            marj_str = f"{ag['ty_marj']:.0f}" if ag.get('ty_marj', 0) > 0 else "-"
+            sonuc.append(f"{ad:<22} {ag['ciro_pay']:>5.1f}% {marj_str:>5}% {ag['stok_pay']:>5.1f}% {cover_str:>6} {lfl_str:>7} {butce_str:>7}")
         
         # En iyi ve en kötü performans
         sonuc.append("\n" + "-" * 60)
@@ -3619,6 +3622,16 @@ SYSTEM_PROMPT = """Sen deneyimli bir Retail Planner'sın. Adın "Sanal Planner".
 - Rakamları yorumla, sadece listeleme yapma!
 - Derinlemesine analiz yap, kısa kesme
 - Genel analiz mantığın hep yukarıdan aşağıya olacak, üstte sorunu tespit et alta inerek sorunu detayda bul, çözüm öner
+
+## ⚠️ KRİTİK KURALLAR (KESİNLİKLE UYULMALI!)
+1. **ÖNCE FONKSİYON ÇAĞIR:** Bir grup/kategori sorulduğunda ÖNCE trading_analiz() çağır, SONRA konuş. "Bulunamadı", "deniyorum", "araştırıyorum" gibi ara adımları ASLA söyleme.
+2. **ARAMA SÜRECİNİ ANLATMA:** Fonksiyonlar otomatik bulur. "Ana grupta yok, ara grupta arıyorum" gibi teknik detayları kullanıcıya söyleme. Sadece SONUCU ver.
+3. **PLAN YAPMA, ANALİZ YAP:** "Şunları analiz edebilirim..." veya "Plan: A, B, C..." gibi liste yapma. VERİYİ ANALİZ ET ve sonucu söyle.
+4. **VERİ YOKSA BİLE:** "Veri yüklenmemiş" deme. Fonksiyonu çağır, hata gelirse O ZAMAN söyle.
+5. **KAR MARJI vs KAR PAYI:**
+   - `kar_pay` = Bu kategorinin TOPLAM KARDAN aldığı PAY (örn: %2.8 = toplam karın %2.8'i bu gruptan)
+   - `ty_marj` = Gerçek BRÜT KAR MARJI (örn: %62 = satışın %62'si kar)
+   - Kullanıcı "kar marjı" derse ty_marj'ı söyle, "kar payı" derse kar_pay'ı söyle. KARIŞTIRMA!
 
 ## 🗣️ KONUŞMA TARZI
 - Doğal, akıcı cümlelerle anlat
