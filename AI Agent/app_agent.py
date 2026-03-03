@@ -513,6 +513,17 @@ st.markdown("""
     .chat-message { padding: 1rem; border-radius: 10px; margin: 0.5rem 0; color: #FFFFFF; line-height: 1.6; }
     .user-message { background-color: #1E3A8A; margin-left: 20%; }
     .agent-message { background-color: #1F2937; margin-right: 20%; }
+
+    /* Yanıp sönen başlık animasyonu */
+    @keyframes blink-glow {
+        0%, 100% { color: #FF6B35; text-shadow: 0 0 5px #FF6B35; }
+        50% { color: #FFD700; text-shadow: 0 0 15px #FFD700, 0 0 25px #FF6B35; }
+    }
+    .blink-title {
+        animation: blink-glow 1.5s ease-in-out infinite;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -642,6 +653,72 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Otomatik yükleme hatası: {e}")
 
+    # 🔍 Grup Detay Analizi - ÜST KISIM (dikkat çekici)
+    st.markdown('<p class="blink-title">🔍 GRUP DETAY ANALİZİ</p>', unsafe_allow_html=True)
+
+    # Ana grupları trading'den çek
+    ana_grup_listesi_top = []
+    if st.session_state.get('kup_yuklendi') and 'kup' in st.session_state:
+        kup_top = st.session_state['kup']
+        if len(kup_top.trading) > 0:
+            ana_grup_kolon_top = None
+            for col in kup_top.trading.columns:
+                col_lower = str(col).lower().strip()
+                if col_lower in ('ana grup', 'ana_grup', 'maingroupdesc', 'main group', 'main_group_desc'):
+                    ana_grup_kolon_top = col
+                    break
+            if ana_grup_kolon_top:
+                tum_gruplar_top = kup_top.trading[ana_grup_kolon_top].dropna().unique().tolist()
+                ana_grup_listesi_top = [
+                    g for g in tum_gruplar_top
+                    if g and str(g).strip() != '' and str(g).lower() != 'nan'
+                    and 'toplam' not in str(g).lower()
+                    and str(g).lower() not in ('total', 'grand total')
+                    and not str(g).strip().endswith(' Total')
+                ]
+                ana_grup_listesi_top = sorted(set(ana_grup_listesi_top))
+
+    if ana_grup_listesi_top:
+        secili_ana_grup_top = st.selectbox(
+            "📦 Ana Grup:",
+            options=["-- Seçiniz --"] + ana_grup_listesi_top,
+            key="ana_grup_secim_top"
+        )
+
+        if secili_ana_grup_top and secili_ana_grup_top != "-- Seçiniz --":
+            if st.button(f"🔎 {secili_ana_grup_top} Analiz", use_container_width=True, key="btn_detay_top"):
+                st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup_top}' parametresiyle çağır."
+
+            # Alt grupları listele
+            if 'kup' in st.session_state and hasattr(st.session_state['kup'], 'trading'):
+                trading_df_top = st.session_state['kup'].trading
+                if len(trading_df_top) > 0:
+                    ana_col_top = next((c for c in trading_df_top.columns if 'maingroupdesc' in c.lower() or 'ana' in c.lower()), None)
+                    ara_col_top = next((c for c in trading_df_top.columns if 'subgroupdesc' in c.lower() or 'ara' in c.lower()), None)
+
+                    if ana_col_top and ara_col_top:
+                        mask_top = trading_df_top[ana_col_top].astype(str).str.upper().str.contains(secili_ana_grup_top.upper(), na=False)
+                        ara_gruplar_top = trading_df_top[mask_top][ara_col_top].dropna().unique().tolist()
+                        ara_gruplar_top = [
+                            str(g).replace('Toplam ', '') for g in ara_gruplar_top
+                            if g and str(g).strip() != '' and str(g).lower() != 'nan'
+                            and 'toplam' not in str(g).lower()[:6]
+                        ]
+                        ara_gruplar_top = sorted(set(ara_gruplar_top))
+
+                        if ara_gruplar_top:
+                            secili_ara_grup_top = st.selectbox(
+                                f"📂 Alt Grup:",
+                                options=["-- Seçiniz --"] + ara_gruplar_top,
+                                key="ara_grup_secim_top"
+                            )
+                            if secili_ara_grup_top and secili_ara_grup_top != "-- Seçiniz --":
+                                if st.button(f"🔍 {secili_ara_grup_top} Detay", use_container_width=True, key="btn_ara_detay_top"):
+                                    st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup_top}' ve ara_grup='{secili_ara_grup_top}' parametreleriyle çağır."
+    else:
+        st.caption("📁 Veri yüklenince gruplar burada görünecek")
+
+    st.markdown("---")
     st.subheader("📊 Veri Durumu")
 
     if st.session_state.get('kup_yuklendi') and 'kup' in st.session_state:
@@ -945,79 +1022,6 @@ with st.sidebar:
     if st.button("🏪 Kapasite Analizi", use_container_width=True):
         st.session_state['hizli_komut'] = "Sadece kapasite analizi yap. Trading analizi yapma. Mağaza doluluk oranları, doluluk aralıkları dağılımı, acil sevkiyat gereken mağazalar, stok eritme gereken mağazalar ve en kritik 5 mağazayı raporla."
     
-    # Grup Detay Analizi
-    st.markdown("---")
-    st.subheader("🔍 Grup Detay Analizi")
-    
-    # Ana grupları trading'den çek
-    ana_grup_listesi = []
-    if st.session_state.get('kup_yuklendi') and 'kup' in st.session_state:
-        kup = st.session_state['kup']
-        if len(kup.trading) > 0:
-            # Mevcut Ana Grup kolonunu bul (hem eski hem CUBE format)
-            ana_grup_kolon = None
-            for col in kup.trading.columns:
-                col_lower = str(col).lower().strip()
-                if col_lower in ('ana grup', 'ana_grup', 'maingroupdesc', 'main group', 'main_group_desc'):
-                    ana_grup_kolon = col
-                    break
-
-            if ana_grup_kolon:
-                # Unique ana grupları al, Toplam/Total/Grand Total hariç
-                tum_gruplar = kup.trading[ana_grup_kolon].dropna().unique().tolist()
-                ana_grup_listesi = [
-                    g for g in tum_gruplar
-                    if g and str(g).strip() != '' and str(g).lower() != 'nan'
-                    and 'toplam' not in str(g).lower()
-                    and str(g).lower() not in ('total', 'grand total')
-                    and not str(g).strip().endswith(' Total')
-                ]
-                ana_grup_listesi = sorted(set(ana_grup_listesi))
-    
-    if ana_grup_listesi:
-        secili_ana_grup = st.selectbox(
-            "Ana Grup Seçin:",
-            options=["-- Seçiniz --"] + ana_grup_listesi,
-            key="ana_grup_secim"
-        )
-
-        if secili_ana_grup and secili_ana_grup != "-- Seçiniz --":
-            # Ana grup analiz butonu
-            if st.button(f"🔎 {secili_ana_grup} Analiz", use_container_width=True, key="btn_detay"):
-                st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup}' parametresiyle çağır."
-
-            # Alt grupları (ara_grup) listele
-            if 'kup' in st.session_state and hasattr(st.session_state['kup'], 'trading'):
-                trading_df = st.session_state['kup'].trading
-                if len(trading_df) > 0:
-                    # Ana gruba ait ara grupları bul
-                    ana_col = next((c for c in trading_df.columns if 'maingroupdesc' in c.lower() or 'ana' in c.lower()), None)
-                    ara_col = next((c for c in trading_df.columns if 'subgroupdesc' in c.lower() or 'ara' in c.lower()), None)
-
-                    if ana_col and ara_col:
-                        # Seçilen ana gruba ait ara grupları filtrele
-                        mask = trading_df[ana_col].astype(str).str.upper().str.contains(secili_ana_grup.upper(), na=False)
-                        ara_gruplar = trading_df[mask][ara_col].dropna().unique().tolist()
-                        ara_gruplar = [
-                            str(g).replace('Toplam ', '') for g in ara_gruplar
-                            if g and str(g).strip() != '' and str(g).lower() != 'nan'
-                            and 'toplam' not in str(g).lower()[:6]
-                        ]
-                        ara_gruplar = sorted(set(ara_gruplar))
-
-                        if ara_gruplar:
-                            secili_ara_grup = st.selectbox(
-                                f"📂 {secili_ana_grup} Alt Grupları:",
-                                options=["-- Alt Grup Seçiniz --"] + ara_gruplar,
-                                key="ara_grup_secim"
-                            )
-
-                            if secili_ara_grup and secili_ara_grup != "-- Alt Grup Seçiniz --":
-                                if st.button(f"🔍 {secili_ara_grup} Detay", use_container_width=True, key="btn_ara_detay"):
-                                    st.session_state['hizli_komut'] = f"trading_analiz fonksiyonunu ana_grup='{secili_ana_grup}' ve ara_grup='{secili_ara_grup}' parametreleriyle çağır."
-    else:
-        st.caption("📁 Veri yüklenince ana gruplar burada listelenecek")
-
 
 # Ana içerik - Chat
 st.header("💬 Planner ile Konuş")
