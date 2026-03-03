@@ -577,6 +577,46 @@ with st.sidebar:
     DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
     os.makedirs(DATA_DIR, exist_ok=True)
 
+    # GitHub'dan veri çekme fonksiyonu
+    def github_dan_veri_cek():
+        """Uygulama başlangıcında GitHub'dan veri dosyalarını çek"""
+        try:
+            gh_token = st.secrets.get("GITHUB_TOKEN", "")
+            gh_repo = st.secrets.get("GITHUB_REPO", "HAKAN8080/Thorius_ai_planner")
+            if not gh_token:
+                return False
+
+            import requests as _req
+            import base64 as _b64
+
+            headers = {"Authorization": f"token {gh_token}", "Accept": "application/vnd.github+json"}
+
+            # data klasöründeki dosyaları listele
+            api_url = f"https://api.github.com/repos/{gh_repo}/contents/AI Agent/data"
+            r = _req.get(api_url, headers=headers)
+
+            if r.status_code != 200:
+                return False
+
+            dosyalar = r.json()
+            indirilen = 0
+
+            for dosya in dosyalar:
+                if dosya['name'].endswith(('.xlsx', '.xls', '.csv')):
+                    # Dosyayı indir
+                    dosya_url = dosya['download_url']
+                    dosya_r = _req.get(dosya_url, headers=headers)
+                    if dosya_r.status_code == 200:
+                        dosya_path = os.path.join(DATA_DIR, dosya['name'])
+                        with open(dosya_path, 'wb') as f:
+                            f.write(dosya_r.content)
+                        indirilen += 1
+
+            return indirilen > 0
+        except Exception as e:
+            print(f"GitHub veri çekme hatası: {e}")
+            return False
+
     # Uygulama başlarken data klasöründen otomatik yükle
     if not st.session_state.get('kup_yuklendi') and 'kup' not in st.session_state:
         # CUBE dosyası var mı kontrol et
@@ -584,6 +624,15 @@ with st.sidebar:
             'cube' in f.lower() for f in os.listdir(DATA_DIR)
             if f.endswith('.xlsx') or f.endswith('.xls')
         ) if os.path.exists(DATA_DIR) else False
+
+        # Lokalde yoksa GitHub'dan çek
+        if not cube_var:
+            with st.spinner("☁️ GitHub'dan veriler çekiliyor..."):
+                if github_dan_veri_cek():
+                    cube_var = any(
+                        'cube' in f.lower() for f in os.listdir(DATA_DIR)
+                        if f.endswith('.xlsx') or f.endswith('.xls')
+                    ) if os.path.exists(DATA_DIR) else False
 
         if cube_var:
             try:
@@ -760,13 +809,10 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Maliyet Optimizasyonu
-    st.subheader("💰 Maliyet Modu")
-    hizli_mod = st.toggle("⚡ Hızlı Mod (10x ucuz)", value=False, help="Basit sorular için Haiku modeli kullanır. Karmaşık analizlerde otomatik Sonnet'e geçer.")
+    # Hızlı Mod
+    st.subheader("⚡ Hızlı Mod")
+    hizli_mod = st.toggle("Hızlı Mod", value=True, help="Detaylı analiz ve derin düşünme için kaldırın")
     st.session_state['hizli_mod'] = hizli_mod
-    if hizli_mod:
-        st.caption("💡 Basit sorgular: Haiku (~$0.001)")
-        st.caption("📊 Detaylı analiz: Sonnet (~$0.01)")
 
     st.markdown("---")
 
