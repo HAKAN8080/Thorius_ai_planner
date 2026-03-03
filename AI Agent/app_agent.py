@@ -757,7 +757,17 @@ with st.sidebar:
     if sesli_aktif:
         ses_secimi = st.radio("Ses seçin:", ["👨 Erol (Erkek)", "👩 Eftelya (Kadın)"], horizontal=True)
         st.session_state['ses_turu'] = "tr-TR-AhmetNeural" if "Erol" in ses_secimi else "tr-TR-EmelNeural"
-    
+
+    st.markdown("---")
+
+    # Maliyet Optimizasyonu
+    st.subheader("💰 Maliyet Modu")
+    hizli_mod = st.toggle("⚡ Hızlı Mod (10x ucuz)", value=False, help="Basit sorular için Haiku modeli kullanır. Karmaşık analizlerde otomatik Sonnet'e geçer.")
+    st.session_state['hizli_mod'] = hizli_mod
+    if hizli_mod:
+        st.caption("💡 Basit sorgular: Haiku (~$0.001)")
+        st.caption("📊 Detaylı analiz: Sonnet (~$0.01)")
+
     st.markdown("---")
 
     # Analiz Kuralları - Sadece admin görebilir
@@ -970,7 +980,8 @@ if mesaj:
             from agent_tools import agent_calistir
 
             analiz_kurallari = st.session_state.get('analiz_kurallari', None)
-            sonuc = agent_calistir(api_key, st.session_state['kup'], mesaj, analiz_kurallari=analiz_kurallari)
+            hizli_mod = st.session_state.get('hizli_mod', False)
+            sonuc = agent_calistir(api_key, st.session_state['kup'], mesaj, analiz_kurallari=analiz_kurallari, hizli_mod=hizli_mod)
 
             thinking_placeholder.empty()
 
