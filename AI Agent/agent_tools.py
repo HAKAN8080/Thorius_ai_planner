@@ -4162,8 +4162,8 @@ def agent_calistir(api_key: str, kup: KupVeri, kullanici_mesaji: str, analiz_kur
     otomatik_haiku = len(kullanici_mesaji) < 20 or any(mesaj_lower.startswith(s) for s in basit_sorgular)
 
     if hizli_mod or otomatik_haiku:
-        model = "claude-haiku-4-5-20251001"  # 10x ucuz
-        print(f"\n⚡ HIZLI MOD (Haiku): {kullanici_mesaji[:50]}...")
+        model = "claude-sonnet-5-5"  # kısa sorularda da Sonnet
+        print(f"\n⚡ KISA SORU (Sonnet): {kullanici_mesaji[:50]}...")
     else:
         model = "claude-sonnet-5-5"  # Detaylı analiz için
         print(f"\n🤖 AGENT BAŞLADI: {kullanici_mesaji[:50]}...")
